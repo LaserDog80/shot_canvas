@@ -7,18 +7,16 @@
 
 ## Project Overview
 
-<!-- Update this section when the project scope changes -->
-
-[Project name and one-line description]
+ShotBoard — A single-file HTML canvas app for visually organising video files into Shots and Scenes, then batch-renaming and exporting them.
 
 ---
 
 ## Tech Stack
 
-- **Language:** Python 3.x
-- **Web framework:** [Flask/FastAPI/None—update as needed]
-- **Testing:** pytest
-- **Package manager:** pip (use requirements.txt)
+- **Language:** HTML/CSS/JavaScript (single file, no build step)
+- **Browser:** Chrome only (requires File System Access API)
+- **Dependencies:** Google Fonts (Inter + JetBrains Mono) — no other external deps
+- **Reference:** `_reference/shottriage.html` — CSS design system and file ingestion reused from this
 
 ---
 

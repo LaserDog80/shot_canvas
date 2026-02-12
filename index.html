@@ -1,0 +1,2212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShotBoard — Visual Shot Organiser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #141414;
+      --bg-secondary: #1c1c1c;
+      --bg-surface: #242424;
+      --bg-elevated: #2c2c2c;
+      --border: #383838;
+      --border-light: #444;
+      --text-primary: #e8e8e8;
+      --text-secondary: #999;
+      --text-muted: #666;
+      --accent: #4a9eff;
+      --accent-dim: rgba(74, 158, 255, 0.15);
+      --warn: #ff9800;
+      --warn-dim: rgba(255, 152, 0, 0.15);
+      --danger: #ef5350;
+      --danger-dim: rgba(239, 83, 80, 0.15);
+      --success: #4caf50;
+      --success-dim: rgba(76, 175, 80, 0.15);
+      --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      --radius: 6px;
+      --radius-lg: 10px;
+      --thumb-size: 160px;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+    }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; font-size: inherit; }
+    input { font-family: inherit; font-size: inherit; color: inherit; }
+    .hidden { display: none !important; }
+
+    /* ===== Buttons ===== */
+    .btn {
+      padding: 6px 14px; border-radius: var(--radius); font-size: 12px; font-weight: 500;
+      transition: all 0.15s; border: 1px solid var(--border); white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--border-light); background: var(--bg-elevated); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn:disabled:hover { border-color: var(--border); background: none; }
+    .btn-accent { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .btn-accent:hover { background: var(--accent); color: #000; }
+    .btn-accent:disabled:hover { background: var(--accent-dim); color: var(--accent); }
+    .btn-danger { color: var(--danger); }
+    .btn-danger:hover { background: var(--danger-dim); }
+
+    /* ===== Toolbar ===== */
+    #toolbar {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .toolbar-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .toolbar-row + .toolbar-row { margin-top: 6px; }
+    .toolbar-left { display: flex; align-items: center; gap: 12px; }
+    .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .toolbar-left h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+    .toolbar-left h1 span { color: var(--accent); }
+    .toolbar-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+    .toolbar-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+    .toolbar-field input[type="text"],
+    .toolbar-field input[type="number"] {
+      background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 5px 8px; color: var(--text-primary); outline: none;
+      font-family: var(--font-mono); font-size: 12px;
+    }
+    .toolbar-field input[type="text"]:focus,
+    .toolbar-field input[type="number"]:focus { border-color: var(--accent); }
+    .toolbar-field input[type="number"] { width: 60px; }
+    #input-project { width: 120px; }
+    #input-template { width: 320px; }
+    .toolbar-field input[type="range"] { width: 100px; accent-color: var(--accent); }
+    .toolbar-tokens {
+      font-size: 11px; color: var(--text-muted); gap: 6px; flex-wrap: wrap;
+    }
+    .token-chip {
+      display: inline-block; background: var(--bg-primary); padding: 2px 8px;
+      border-radius: 3px; font-size: 11px; color: var(--accent);
+      font-family: var(--font-mono); cursor: pointer; border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .token-chip:hover { border-color: var(--accent); background: var(--accent-dim); }
+
+    /* ===== Drop Zone ===== */
+    #drop-zone {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      border: 2px dashed var(--border); border-radius: var(--radius-lg);
+      margin: 20px; transition: all 0.2s;
+    }
+    #drop-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .drop-content { text-align: center; padding: 40px; }
+    .drop-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+    .drop-content h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .drop-content p { color: var(--text-secondary); font-size: 14px; }
+
+    /* ===== Drop Overlay ===== */
+    #drop-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(10, 10, 10, 0.85);
+      display: flex; align-items: center; justify-content: center;
+      border: 3px dashed var(--accent);
+    }
+    #drop-overlay .overlay-text { font-size: 22px; font-weight: 600; color: var(--accent); }
+
+    /* ===== Canvas Viewport ===== */
+    #canvas-viewport {
+      flex: 1; position: relative; overflow: hidden;
+      background: var(--bg-primary); cursor: default;
+    }
+    #canvas-viewport.panning { cursor: grabbing; }
+    #canvas-world {
+      position: absolute; top: 0; left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    /* ===== Thumbnail Cards ===== */
+    .thumb-card {
+      position: absolute;
+      width: var(--thumb-size);
+      cursor: grab;
+      user-select: none;
+      z-index: 10;
+      transition: box-shadow 0.1s;
+    }
+    .thumb-card:hover { z-index: 11; }
+    .thumb-card.selected .thumb-img { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .thumb-card.dragging { opacity: 0.7; z-index: 100; cursor: grabbing; }
+    .thumb-img {
+      width: 100%; aspect-ratio: 16/9; background: #000;
+      border-radius: 4px; overflow: hidden; position: relative;
+    }
+    .thumb-img img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      pointer-events: none;
+    }
+    .thumb-img .thumb-placeholder {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); font-size: 10px; font-family: var(--font-mono);
+    }
+    .thumb-label {
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary);
+      text-align: center; margin-top: 3px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      width: var(--thumb-size);
+    }
+    .thumb-card .dupe-badge {
+      position: absolute; top: 4px; right: 4px;
+      background: var(--danger); color: #fff; font-size: 9px; font-weight: 700;
+      padding: 1px 5px; border-radius: 3px; letter-spacing: 0.3px; z-index: 2;
+    }
+    .thumb-card .suffix-badge {
+      position: absolute; bottom: 4px; left: 4px;
+      background: var(--warn); color: #000; font-size: 9px; font-weight: 600;
+      padding: 1px 5px; border-radius: 3px; z-index: 2;
+    }
+
+    /* ===== Shot Boxes ===== */
+    .shot-box {
+      position: absolute;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius);
+      background: rgba(44, 44, 44, 0.4);
+      z-index: 5;
+      pointer-events: none;
+    }
+    .shot-box.selected { border-color: var(--accent); }
+    .shot-label {
+      position: absolute; top: -1px; left: -1px;
+      background: var(--bg-elevated); border: 1.5px solid var(--border-light);
+      border-radius: var(--radius) 0 var(--radius) 0;
+      padding: 2px 10px; font-family: var(--font-mono);
+      font-size: 11px; font-weight: 600; color: var(--text-primary);
+      cursor: pointer; pointer-events: auto; user-select: none;
+      white-space: nowrap; z-index: 6;
+    }
+    .shot-box.selected .shot-label { border-color: var(--accent); color: var(--accent); }
+
+    /* ===== Scene Boxes ===== */
+    .scene-box {
+      position: absolute;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(74, 158, 255, 0.03);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .scene-box.selected { border-color: var(--accent); background: rgba(74, 158, 255, 0.06); }
+    .scene-label {
+      position: absolute; top: -1px; left: 10px;
+      background: var(--bg-primary); border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 3px 14px; font-family: var(--font-ui);
+      font-size: 13px; font-weight: 700; color: var(--text-secondary);
+      letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; pointer-events: auto; user-select: none;
+      white-space: nowrap; z-index: 3;
+    }
+    .scene-box.selected .scene-label { border-color: var(--accent); color: var(--accent); }
+
+    /* ===== Marquee ===== */
+    #marquee {
+      position: absolute; z-index: 500;
+      border: 1px solid var(--accent);
+      background: rgba(74, 158, 255, 0.1);
+      pointer-events: none;
+    }
+
+    /* ===== Context Menu ===== */
+    #context-menu {
+      position: fixed; z-index: 300;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 4px 0;
+      min-width: 180px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .ctx-item {
+      display: block; width: 100%; text-align: left;
+      padding: 7px 16px; font-size: 12px; color: var(--text-primary);
+      transition: background 0.1s;
+    }
+    .ctx-item:hover { background: var(--accent-dim); }
+    .ctx-item.disabled { color: var(--text-muted); pointer-events: none; }
+    .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+    .ctx-item .shortcut { float: right; color: var(--text-muted); font-size: 11px; margin-left: 20px; }
+
+    /* ===== Status Bar ===== */
+    #status-bar {
+      display: flex; align-items: center; gap: 16px;
+      padding: 6px 16px; background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--text-secondary);
+      flex-shrink: 0; z-index: 100;
+    }
+    .stat-sep { color: var(--border); }
+
+    /* ===== Modal ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-box {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 24px;
+      width: 440px; max-width: 90vw; max-height: 85vh;
+      display: flex; flex-direction: column;
+    }
+    .modal-box-wide { width: 860px; }
+    .modal-box h2 { font-size: 18px; margin-bottom: 16px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-header h2 { margin-bottom: 0; }
+    .modal-close { font-size: 20px; color: var(--text-muted); padding: 4px 8px; }
+    .modal-close:hover { color: var(--text-primary); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-shrink: 0; }
+    .modal-actions .btn { padding: 8px 20px; }
+    .modal-body { overflow-y: auto; flex: 1; min-height: 0; }
+
+    /* ===== Rename Preview Table ===== */
+    .rename-summary {
+      display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary);
+      margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .rename-summary strong { font-weight: 600; }
+    .rename-warn { color: var(--danger); font-weight: 600; }
+    .rename-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12px; font-family: var(--font-mono);
+    }
+    .rename-table th {
+      text-align: left; padding: 6px 10px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text-muted); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--bg-surface);
+    }
+    .rename-table td {
+      padding: 5px 10px; border-bottom: 1px solid var(--border);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;
+    }
+    .rename-table tr:hover { background: var(--bg-elevated); }
+    .rename-arrow { color: var(--text-muted); text-align: center; }
+    .rename-new { color: var(--accent); }
+    .rename-table tr.rename-collision td { background: rgba(239, 68, 68, 0.08); }
+    .rename-table tr.rename-collision .rename-new { color: var(--danger); }
+    .rename-scene-header td {
+      padding: 10px 10px 6px; font-family: var(--font-ui); font-weight: 700;
+      font-size: 12px; color: var(--text-secondary); letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .rename-excluded td { opacity: 0.4; }
+
+    /* ===== Progress Bar ===== */
+    .progress-bar {
+      width: 100%; height: 4px; background: var(--bg-primary);
+      border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; border-radius: 2px; }
+    .progress-row {
+      display: flex; justify-content: space-between; margin-bottom: 6px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+
+    /* ===== Video Playback Overlay ===== */
+    #video-overlay {
+      position: fixed; inset: 0; z-index: 250;
+      background: rgba(0,0,0,0.85);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    #video-overlay video {
+      max-width: 90vw; max-height: 85vh; border-radius: var(--radius-lg);
+    }
+
+    /* ===== Inline Edit ===== */
+    .inline-edit {
+      background: var(--bg-primary); border: 1px solid var(--accent);
+      border-radius: 3px; color: var(--text-primary); padding: 2px 6px;
+      font-family: var(--font-mono); font-size: inherit; font-weight: inherit;
+      outline: none; width: 80px; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Toolbar ===== -->
+  <header id="toolbar">
+    <div class="toolbar-row">
+      <div class="toolbar-left">
+        <h1>Shot<span>Board</span></h1>
+        <div class="toolbar-sep"></div>
+        <button class="btn" id="btn-import">Import Folder</button>
+        <button class="btn" id="btn-save">Save Session</button>
+        <button class="btn" id="btn-load">Load Session</button>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn" id="btn-dupes">Detect Dupes</button>
+        <button class="btn" id="btn-preview">Preview Rename</button>
+        <button class="btn btn-accent" id="btn-export">Export</button>
+      </div>
+    </div>
+    <div class="toolbar-row">
+      <div class="toolbar-field">
+        <span>Project</span>
+        <input type="text" id="input-project" value="PROJECT" spellcheck="false">
+      </div>
+      <div class="toolbar-field">
+        <span>Template</span>
+        <input type="text" id="input-template" value="{project}_{scene}_SH{shot}_{version}" spellcheck="false">
+      </div>
+      <div class="toolbar-field">
+        <span>Start</span>
+        <input type="number" id="input-shot-start" value="10" min="1">
+      </div>
+      <div class="toolbar-field">
+        <span>Inc</span>
+        <input type="number" id="input-shot-inc" value="10" min="1">
+      </div>
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-field">
+        <span>Thumb</span>
+        <input type="range" id="input-thumb-size" min="80" max="320" value="160">
+        <span id="thumb-size-label">160px</span>
+      </div>
+    </div>
+    <div class="toolbar-row toolbar-tokens">
+      <span>Tokens:</span>
+      <button class="token-chip" data-token="{project}">{project}</button>
+      <button class="token-chip" data-token="{scene}">{scene}</button>
+      <button class="token-chip" data-token="{shot}">{shot}</button>
+      <button class="token-chip" data-token="{version}">{version}</button>
+      <button class="token-chip" data-token="{suffix}">{suffix}</button>
+      <button class="token-chip" data-token="{prefix}">{prefix}</button>
+      <button class="token-chip" data-token="{original}">{original}</button>
+      <button class="token-chip" data-token="{date}">{date}</button>
+      <button class="token-chip" data-token="{nn}">{nn}</button>
+    </div>
+  </header>
+
+  <!-- ===== Drop Zone ===== -->
+  <div id="drop-zone">
+    <div class="drop-content">
+      <div class="drop-icon">&darr;</div>
+      <h2>Drop video folders here</h2>
+      <p>Drag one or more folders containing MP4, MOV, WebM, or other video files.</p>
+      <p style="margin-top: 16px; color: var(--text-muted);">— or —</p>
+      <button class="btn btn-accent" id="btn-select-source" style="margin-top: 12px; padding: 10px 24px; font-size: 14px;">
+        Select Source Folder
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== Canvas Viewport ===== -->
+  <div id="canvas-viewport" class="hidden">
+    <div id="canvas-world"></div>
+    <div id="marquee" class="hidden"></div>
+  </div>
+
+  <!-- ===== Drop Overlay ===== -->
+  <div id="drop-overlay" class="hidden">
+    <span class="overlay-text">Drop folders to add more files</span>
+  </div>
+
+  <!-- ===== Rename Preview Modal ===== -->
+  <div id="rename-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h2>Rename Preview</h2>
+        <button class="modal-close" id="rename-close">&times;</button>
+      </div>
+      <div id="rename-info"></div>
+      <div class="modal-body" id="rename-body"></div>
+      <div id="rename-progress" class="hidden" style="margin-top: 12px;">
+        <div class="progress-row">
+          <span id="rename-progress-text">Copying files...</span>
+          <span id="rename-progress-count">0/0</span>
+        </div>
+        <div class="progress-bar" style="height: 6px;">
+          <div class="progress-fill" id="rename-progress-fill"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="rename-cancel">Cancel</button>
+        <button class="btn btn-accent" id="rename-export" disabled>Export &amp; Rename Files</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Context Menu ===== -->
+  <div id="context-menu" class="hidden"></div>
+
+  <!-- ===== Video Playback Overlay ===== -->
+  <div id="video-overlay" class="hidden">
+    <video id="video-player" controls></video>
+  </div>
+
+  <!-- ===== Status Bar ===== -->
+  <footer id="status-bar">
+    <span id="stat-files">0 files</span>
+    <span class="stat-sep">|</span>
+    <span id="stat-scenes">0 scenes</span>
+    <span class="stat-sep">|</span>
+    <span id="stat-shots">0 shots</span>
+    <span class="stat-sep">|</span>
+    <span id="stat-ungrouped">0 ungrouped</span>
+    <span class="stat-sep">|</span>
+    <span id="stat-dupes">0 dupes</span>
+    <span class="stat-sep">|</span>
+    <span id="stat-zoom">Zoom: 100%</span>
+  </footer>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   ShotBoard — Visual Shot Organiser
+   Single-file application. All logic below.
+   ===================================================================== */
+
+/* ===== Constants ===== */
+const VIDEO_EXTENSIONS = new Set([
+  'mp4','m4v','mov','webm','avi','mkv','wmv','ogv','ogg','3gp','flv','mxf'
+]);
+const THUMB_LABEL_H = 20;
+const THUMB_GAP = 24;
+const SHOT_PAD = 12;
+const SHOT_TOP_PAD = 28;
+const SCENE_PAD = 16;
+const SCENE_TOP_PAD = 36;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.001;
+
+/* ===== State ===== */
+const state = {
+  projectName: 'PROJECT',
+  files: [],          // [{id, file, name, relativePath, objectUrl, size, thumbnailUrl, possibleDupe}]
+  nextId: 0,
+  thumbnails: [],     // [{fileId, x, y, suffix, prefix}]
+  shots: [],          // [{id, number, fileIds}]
+  scenes: [],         // [{id, name, shotIds}]
+  nextShotId: 0,
+  nextSceneId: 0,
+  panX: 0,
+  panY: 0,
+  zoom: 1,
+  template: '{project}_{scene}_SH{shot}_{version}',
+  shotIncrement: 10,
+  shotStartNumber: 10,
+  thumbSize: 160,
+  selectedItems: [],  // [{type: 'thumbnail'|'shot'|'scene', id: number}]
+  dragState: null,
+  spaceHeld: false,
+  outputDirHandle: null,
+  undoStack: [],
+  droppedFolderNames: [],
+};
+
+/* ===== DOM Refs ===== */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+const dom = {
+  toolbar:     $('#toolbar'),
+  dropZone:    $('#drop-zone'),
+  dropOverlay: $('#drop-overlay'),
+  viewport:    $('#canvas-viewport'),
+  world:       $('#canvas-world'),
+  marquee:     $('#marquee'),
+  statusBar:   $('#status-bar'),
+  ctxMenu:     $('#context-menu'),
+  renameModal: $('#rename-modal'),
+  renameInfo:  $('#rename-info'),
+  renameBody:  $('#rename-body'),
+  renameExportBtn: $('#rename-export'),
+  videoOverlay:$('#video-overlay'),
+  videoPlayer: $('#video-player'),
+};
+
+/* ===== Utilities ===== */
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML.replace(/"/g, '&quot;');
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function isVideoFile(name) {
+  const dot = name.lastIndexOf('.');
+  if (dot === -1) return false;
+  return VIDEO_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
+function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+function today() {
+  const d = new Date();
+  return String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+}
+
+/* ===== File Ingestion (adapted from ShotTriage) ===== */
+
+async function readEntry(entry, basePath) {
+  if (entry.isFile) {
+    return new Promise((resolve) => {
+      entry.file((file) => {
+        if (isVideoFile(file.name)) resolve([{ file, relativePath: basePath + file.name }]);
+        else resolve([]);
+      }, () => resolve([]));
+    });
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const allEntries = [];
+    let batch;
+    do {
+      batch = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+      allEntries.push(...batch);
+    } while (batch.length > 0);
+    const results = [];
+    for (const child of allEntries) {
+      results.push(...await readEntry(child, basePath + entry.name + '/'));
+    }
+    return results;
+  }
+  return [];
+}
+
+async function readFilesFromHandle(dirHandle, basePath = '') {
+  const files = [];
+  try {
+    for await (const entry of dirHandle.values()) {
+      try {
+        if (entry.kind === 'file') {
+          if (!isVideoFile(entry.name)) continue;
+          const file = await entry.getFile();
+          files.push({ file, relativePath: basePath + file.name });
+        } else if (entry.kind === 'directory') {
+          files.push(...await readFilesFromHandle(entry, basePath + entry.name + '/'));
+        }
+      } catch (err) {
+        console.warn(`Skipping entry in ${basePath}: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.warn(`Could not read directory ${basePath}: ${err.message}`);
+  }
+  return files;
+}
+
+async function ingestFiles(dataTransfer) {
+  const items = [...dataTransfer.items];
+  let newFiles = [];
+  const useModernAPI = items.length > 0 && typeof items[0].getAsFileSystemHandle === 'function';
+
+  if (useModernAPI) {
+    const handlePromises = items.map(item => item.getAsFileSystemHandle().catch(() => null));
+    const handles = await Promise.all(handlePromises);
+    for (const handle of handles) {
+      if (!handle) continue;
+      try {
+        if (handle.kind === 'directory') {
+          if (!state.droppedFolderNames.includes(handle.name)) state.droppedFolderNames.push(handle.name);
+          newFiles.push(...await readFilesFromHandle(handle, handle.name + '/'));
+        } else if (handle.kind === 'file') {
+          const file = await handle.getFile();
+          if (isVideoFile(file.name)) newFiles.push({ file, relativePath: file.name });
+        }
+      } catch (err) { console.warn('Failed to process handle:', err); }
+    }
+  } else {
+    const entries = items.map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    if (entries.length === 0) return 0;
+    for (const entry of entries) {
+      if (entry.isDirectory && !state.droppedFolderNames.includes(entry.name)) state.droppedFolderNames.push(entry.name);
+    }
+    for (const entry of entries) newFiles.push(...await readEntry(entry, ''));
+  }
+
+  const existing = new Set(state.files.map(f => f.relativePath));
+  newFiles = newFiles.filter(f => !existing.has(f.relativePath));
+
+  const newFileIds = [];
+  for (const { file, relativePath } of newFiles) {
+    const id = state.nextId++;
+    state.files.push({
+      id, file, name: file.name, relativePath,
+      objectUrl: URL.createObjectURL(file),
+      size: file.size, thumbnailUrl: null, possibleDupe: false,
+    });
+    newFileIds.push(id);
+  }
+
+  return newFileIds;
+}
+
+async function selectSourceFolder() {
+  try {
+    const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+    const foundFiles = await readFilesFromHandle(dirHandle, dirHandle.name + '/');
+    if (foundFiles.length === 0) { alert('No video files found in the selected folder.'); return []; }
+    const existing = new Set(state.files.map(f => f.relativePath));
+    const newFiles = foundFiles.filter(f => !existing.has(f.relativePath));
+    const newFileIds = [];
+    for (const { file, relativePath } of newFiles) {
+      const id = state.nextId++;
+      state.files.push({
+        id, file, name: file.name, relativePath,
+        objectUrl: URL.createObjectURL(file),
+        size: file.size, thumbnailUrl: null, possibleDupe: false,
+      });
+      newFileIds.push(id);
+    }
+    return newFileIds;
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Directory picker error:', err);
+      alert('Could not open folder picker. Use Chrome or Edge.');
+    }
+    return [];
+  }
+}
+
+/* ===== Thumbnail Extraction ===== */
+
+async function extractThumbnail(objectUrl) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+    video.src = objectUrl;
+    const cleanup = () => { video.removeAttribute('src'); video.load(); };
+    video.addEventListener('loadeddata', () => {
+      try {
+        const c = document.createElement('canvas');
+        const vw = video.videoWidth || 320;
+        const vh = video.videoHeight || 180;
+        const s = Math.min(320 / vw, 1);
+        c.width = vw * s;
+        c.height = vh * s;
+        c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+        c.toBlob(blob => { cleanup(); resolve(blob ? URL.createObjectURL(blob) : null); }, 'image/jpeg', 0.7);
+      } catch { cleanup(); resolve(null); }
+    }, { once: true });
+    video.addEventListener('error', () => { cleanup(); resolve(null); }, { once: true });
+  });
+}
+
+async function extractAllThumbnails(fileIds) {
+  const concurrency = 4;
+  const queue = [...fileIds];
+  async function worker() {
+    while (queue.length > 0) {
+      const fid = queue.shift();
+      const f = state.files.find(x => x.id === fid);
+      if (!f || f.thumbnailUrl) continue;
+      f.thumbnailUrl = await extractThumbnail(f.objectUrl);
+      updateThumbElement(fid);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, () => worker()));
+}
+
+/* ===== Auto Arrange ===== */
+
+function autoArrange(fileIds) {
+  const ts = state.thumbSize;
+  const cellW = ts + THUMB_GAP;
+  const cellH = ts * 9/16 + THUMB_LABEL_H + THUMB_GAP;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(fileIds.length)));
+
+  let startY = 20;
+  if (state.thumbnails.length > 0) {
+    const maxY = Math.max(...state.thumbnails.map(t => t.y + ts * 9/16 + THUMB_LABEL_H));
+    startY = maxY + THUMB_GAP * 2;
+  }
+
+  for (let i = 0; i < fileIds.length; i++) {
+    state.thumbnails.push({
+      fileId: fileIds[i],
+      x: 20 + (i % cols) * cellW,
+      y: startY + Math.floor(i / cols) * cellH,
+      suffix: '',
+      prefix: '',
+    });
+  }
+}
+
+/* ===== Canvas Engine ===== */
+
+function applyTransform() {
+  dom.world.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+}
+
+function screenToWorld(sx, sy) {
+  const rect = dom.viewport.getBoundingClientRect();
+  return {
+    x: (sx - rect.left - state.panX) / state.zoom,
+    y: (sy - rect.top - state.panY) / state.zoom,
+  };
+}
+
+function zoomAtPoint(newZoom, viewportX, viewportY) {
+  const rect = dom.viewport.getBoundingClientRect();
+  const vx = viewportX - rect.left;
+  const vy = viewportY - rect.top;
+  const wx = (vx - state.panX) / state.zoom;
+  const wy = (vy - state.panY) / state.zoom;
+  state.zoom = clamp(newZoom, MIN_ZOOM, MAX_ZOOM);
+  state.panX = vx - wx * state.zoom;
+  state.panY = vy - wy * state.zoom;
+  applyTransform();
+  updateStatusBar();
+}
+
+/* ===== Undo ===== */
+
+function pushUndo() {
+  state.undoStack.push({
+    thumbnails: JSON.parse(JSON.stringify(state.thumbnails)),
+    shots: JSON.parse(JSON.stringify(state.shots)),
+    scenes: JSON.parse(JSON.stringify(state.scenes)),
+  });
+  if (state.undoStack.length > 50) state.undoStack.shift();
+}
+
+function undo() {
+  if (state.undoStack.length === 0) return;
+  const snap = state.undoStack.pop();
+  state.thumbnails = snap.thumbnails;
+  state.shots = snap.shots;
+  state.scenes = snap.scenes;
+  state.selectedItems = [];
+  renderCanvas();
+  updateStatusBar();
+}
+
+/* ===== Shot / Scene Bounds Computation ===== */
+
+function thumbBounds(t) {
+  const ts = state.thumbSize;
+  return { x: t.x, y: t.y, w: ts, h: ts * 9/16 + THUMB_LABEL_H };
+}
+
+function computeShotBounds(shot) {
+  const thumbs = shot.fileIds.map(fid => state.thumbnails.find(t => t.fileId === fid)).filter(Boolean);
+  if (thumbs.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const t of thumbs) {
+    const b = thumbBounds(t);
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  return {
+    x: minX - SHOT_PAD,
+    y: minY - SHOT_TOP_PAD,
+    w: (maxX - minX) + 2 * SHOT_PAD,
+    h: (maxY - minY) + SHOT_TOP_PAD + SHOT_PAD,
+  };
+}
+
+function computeSceneBounds(scene) {
+  const shotBoundsList = scene.shotIds
+    .map(sid => state.shots.find(s => s.id === sid))
+    .filter(Boolean)
+    .map(s => computeShotBounds(s))
+    .filter(Boolean);
+  if (shotBoundsList.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const b of shotBoundsList) {
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  return {
+    x: minX - SCENE_PAD,
+    y: minY - SCENE_TOP_PAD,
+    w: (maxX - minX) + 2 * SCENE_PAD,
+    h: (maxY - minY) + SCENE_TOP_PAD + SCENE_PAD,
+  };
+}
+
+/* ===== Grouping ===== */
+
+function nextShotNumber() {
+  const existing = state.shots.map(s => s.number).sort((a, b) => a - b);
+  if (existing.length === 0) return state.shotStartNumber;
+  return existing[existing.length - 1] + state.shotIncrement;
+}
+
+function createShot(fileIds, number) {
+  if (fileIds.length === 0) return null;
+  pushUndo();
+  // Remove from any existing shots
+  for (const fid of fileIds) {
+    for (const shot of state.shots) {
+      const idx = shot.fileIds.indexOf(fid);
+      if (idx !== -1) shot.fileIds.splice(idx, 1);
+    }
+  }
+  // Clean up empty shots
+  state.shots = state.shots.filter(s => s.fileIds.length > 0);
+  const shotNum = number != null ? number : nextShotNumber();
+  const shot = { id: state.nextShotId++, number: shotNum, fileIds: [...fileIds] };
+  state.shots.push(shot);
+  state.selectedItems = [{ type: 'shot', id: shot.id }];
+  renderCanvas();
+  updateStatusBar();
+  return shot;
+}
+
+function createScene(shotIds, name) {
+  if (shotIds.length === 0) return null;
+  pushUndo();
+  // Remove from any existing scenes
+  for (const sid of shotIds) {
+    for (const scene of state.scenes) {
+      const idx = scene.shotIds.indexOf(sid);
+      if (idx !== -1) scene.shotIds.splice(idx, 1);
+    }
+  }
+  state.scenes = state.scenes.filter(s => s.shotIds.length > 0);
+  const scene = { id: state.nextSceneId++, name: name || 'SCENE', shotIds: [...shotIds] };
+  state.scenes.push(scene);
+  state.selectedItems = [{ type: 'scene', id: scene.id }];
+  renderCanvas();
+  updateStatusBar();
+  return scene;
+}
+
+function dissolveShot(shotId) {
+  pushUndo();
+  const shot = state.shots.find(s => s.id === shotId);
+  if (!shot) return;
+  // Remove shot from any scenes
+  for (const scene of state.scenes) {
+    const idx = scene.shotIds.indexOf(shotId);
+    if (idx !== -1) scene.shotIds.splice(idx, 1);
+  }
+  state.scenes = state.scenes.filter(s => s.shotIds.length > 0);
+  state.shots = state.shots.filter(s => s.id !== shotId);
+  state.selectedItems = [];
+  renderCanvas();
+  updateStatusBar();
+}
+
+function dissolveScene(sceneId) {
+  pushUndo();
+  state.scenes = state.scenes.filter(s => s.id !== sceneId);
+  state.selectedItems = [];
+  renderCanvas();
+  updateStatusBar();
+}
+
+function addToShot(fileId, shotId) {
+  pushUndo();
+  // Remove from current shot
+  for (const shot of state.shots) {
+    const idx = shot.fileIds.indexOf(fileId);
+    if (idx !== -1) shot.fileIds.splice(idx, 1);
+  }
+  state.shots = state.shots.filter(s => s.fileIds.length > 0);
+  const shot = state.shots.find(s => s.id === shotId);
+  if (shot && !shot.fileIds.includes(fileId)) shot.fileIds.push(fileId);
+}
+
+function removeFromShot(fileId) {
+  for (const shot of state.shots) {
+    const idx = shot.fileIds.indexOf(fileId);
+    if (idx !== -1) {
+      shot.fileIds.splice(idx, 1);
+      break;
+    }
+  }
+  state.shots = state.shots.filter(s => s.fileIds.length > 0);
+  // Also clean up scenes
+  const shotIds = new Set(state.shots.map(s => s.id));
+  for (const scene of state.scenes) {
+    scene.shotIds = scene.shotIds.filter(sid => shotIds.has(sid));
+  }
+  state.scenes = state.scenes.filter(s => s.shotIds.length > 0);
+}
+
+/* ===== Duplicate Detection ===== */
+
+function flagDuplicates() {
+  for (const f of state.files) f.possibleDupe = false;
+  const clusters = {};
+  for (const f of state.files) {
+    const key = f.size;
+    if (!clusters[key]) clusters[key] = [];
+    clusters[key].push(f);
+  }
+  for (const files of Object.values(clusters)) {
+    if (files.length >= 2) {
+      for (let i = 1; i < files.length; i++) files[i].possibleDupe = true;
+    }
+  }
+  renderCanvas();
+  updateStatusBar();
+}
+
+/* ===== Selection ===== */
+
+function isSelected(type, id) {
+  return state.selectedItems.some(s => s.type === type && s.id === id);
+}
+
+function selectItem(type, id, additive) {
+  if (additive) {
+    const idx = state.selectedItems.findIndex(s => s.type === type && s.id === id);
+    if (idx !== -1) state.selectedItems.splice(idx, 1);
+    else state.selectedItems.push({ type, id });
+  } else {
+    if (isSelected(type, id) && state.selectedItems.length === 1) return;
+    state.selectedItems = [{ type, id }];
+  }
+  updateSelectionVisuals();
+}
+
+function deselectAll() {
+  state.selectedItems = [];
+  updateSelectionVisuals();
+}
+
+function selectAll() {
+  state.selectedItems = state.thumbnails.map(t => ({ type: 'thumbnail', id: t.fileId }));
+  updateSelectionVisuals();
+}
+
+function getSelectedFileIds() {
+  return state.selectedItems.filter(s => s.type === 'thumbnail').map(s => s.id);
+}
+
+function getSelectedShotIds() {
+  return state.selectedItems.filter(s => s.type === 'shot').map(s => s.id);
+}
+
+function updateSelectionVisuals() {
+  dom.world.querySelectorAll('.thumb-card').forEach(el => {
+    el.classList.toggle('selected', isSelected('thumbnail', parseInt(el.dataset.fileId)));
+  });
+  dom.world.querySelectorAll('.shot-box').forEach(el => {
+    el.classList.toggle('selected', isSelected('shot', parseInt(el.dataset.shotId)));
+  });
+  dom.world.querySelectorAll('.scene-box').forEach(el => {
+    el.classList.toggle('selected', isSelected('scene', parseInt(el.dataset.sceneId)));
+  });
+}
+
+/* ===== Hit Testing ===== */
+
+function hitTest(worldX, worldY) {
+  const ts = state.thumbSize;
+  // Check thumbnails first (highest z)
+  for (let i = state.thumbnails.length - 1; i >= 0; i--) {
+    const t = state.thumbnails[i];
+    const b = thumbBounds(t);
+    if (worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h) {
+      return { type: 'thumbnail', id: t.fileId };
+    }
+  }
+  // Check shot labels
+  for (let i = state.shots.length - 1; i >= 0; i--) {
+    const shot = state.shots[i];
+    const bounds = computeShotBounds(shot);
+    if (!bounds) continue;
+    // Label area at top
+    if (worldX >= bounds.x && worldX <= bounds.x + 80 && worldY >= bounds.y && worldY <= bounds.y + 22) {
+      return { type: 'shot', id: shot.id };
+    }
+  }
+  // Check scene labels
+  for (let i = state.scenes.length - 1; i >= 0; i--) {
+    const scene = state.scenes[i];
+    const bounds = computeSceneBounds(scene);
+    if (!bounds) continue;
+    if (worldX >= bounds.x + 10 && worldX <= bounds.x + 150 && worldY >= bounds.y && worldY <= bounds.y + 28) {
+      return { type: 'scene', id: scene.id };
+    }
+  }
+  return null;
+}
+
+function itemsInRect(rx, ry, rw, rh) {
+  const items = [];
+  for (const t of state.thumbnails) {
+    const b = thumbBounds(t);
+    if (b.x + b.w > rx && b.x < rx + rw && b.y + b.h > ry && b.y < ry + rh) {
+      items.push({ type: 'thumbnail', id: t.fileId });
+    }
+  }
+  for (const shot of state.shots) {
+    const b = computeShotBounds(shot);
+    if (!b) continue;
+    if (b.x + b.w > rx && b.x < rx + rw && b.y + b.h > ry && b.y < ry + rh) {
+      items.push({ type: 'shot', id: shot.id });
+    }
+  }
+  return items;
+}
+
+/* ===== Canvas Rendering ===== */
+
+function renderCanvas() {
+  dom.world.innerHTML = '';
+
+  // Scene boxes (z-index 2)
+  for (const scene of state.scenes) {
+    const b = computeSceneBounds(scene);
+    if (!b) continue;
+    const el = document.createElement('div');
+    el.className = 'scene-box' + (isSelected('scene', scene.id) ? ' selected' : '');
+    el.dataset.sceneId = scene.id;
+    el.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px;`;
+    const label = document.createElement('div');
+    label.className = 'scene-label';
+    label.textContent = scene.name;
+    label.dataset.sceneId = scene.id;
+    el.appendChild(label);
+    dom.world.appendChild(el);
+  }
+
+  // Shot boxes (z-index 5)
+  for (const shot of state.shots) {
+    const b = computeShotBounds(shot);
+    if (!b) continue;
+    const el = document.createElement('div');
+    el.className = 'shot-box' + (isSelected('shot', shot.id) ? ' selected' : '');
+    el.dataset.shotId = shot.id;
+    el.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px;`;
+    const label = document.createElement('div');
+    label.className = 'shot-label';
+    label.textContent = 'SH' + String(shot.number).padStart(3, '0');
+    label.dataset.shotId = shot.id;
+    el.appendChild(label);
+    dom.world.appendChild(el);
+  }
+
+  // Thumbnails (z-index 10)
+  for (const t of state.thumbnails) {
+    const f = state.files.find(x => x.id === t.fileId);
+    if (!f) continue;
+    const el = document.createElement('div');
+    el.className = 'thumb-card' + (isSelected('thumbnail', t.fileId) ? ' selected' : '');
+    el.dataset.fileId = t.fileId;
+    el.style.cssText = `left:${t.x}px;top:${t.y}px;width:${state.thumbSize}px;`;
+
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'thumb-img';
+    if (f.thumbnailUrl) {
+      const img = document.createElement('img');
+      img.src = f.thumbnailUrl;
+      img.draggable = false;
+      imgWrap.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'thumb-placeholder';
+      ph.textContent = 'loading...';
+      imgWrap.appendChild(ph);
+    }
+
+    if (f.possibleDupe) {
+      const badge = document.createElement('div');
+      badge.className = 'dupe-badge';
+      badge.textContent = 'DUPE?';
+      imgWrap.appendChild(badge);
+    }
+    if (t.suffix) {
+      const badge = document.createElement('div');
+      badge.className = 'suffix-badge';
+      badge.textContent = t.suffix;
+      imgWrap.appendChild(badge);
+    }
+
+    const label = document.createElement('div');
+    label.className = 'thumb-label';
+    label.textContent = f.name;
+    label.title = f.relativePath + ' — ' + formatSize(f.size);
+
+    el.appendChild(imgWrap);
+    el.appendChild(label);
+    dom.world.appendChild(el);
+  }
+
+  applyTransform();
+}
+
+function updateThumbElement(fileId) {
+  const el = dom.world.querySelector(`.thumb-card[data-file-id="${fileId}"]`);
+  if (!el) return;
+  const f = state.files.find(x => x.id === fileId);
+  if (!f || !f.thumbnailUrl) return;
+  const imgWrap = el.querySelector('.thumb-img');
+  const placeholder = imgWrap.querySelector('.thumb-placeholder');
+  if (placeholder) {
+    const img = document.createElement('img');
+    img.src = f.thumbnailUrl;
+    img.draggable = false;
+    imgWrap.replaceChild(img, placeholder);
+  }
+}
+
+function updatePositions() {
+  for (const t of state.thumbnails) {
+    const el = dom.world.querySelector(`.thumb-card[data-file-id="${t.fileId}"]`);
+    if (el) { el.style.left = t.x + 'px'; el.style.top = t.y + 'px'; }
+  }
+  for (const shot of state.shots) {
+    const el = dom.world.querySelector(`.shot-box[data-shot-id="${shot.id}"]`);
+    const b = computeShotBounds(shot);
+    if (el && b) el.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px;`;
+  }
+  for (const scene of state.scenes) {
+    const el = dom.world.querySelector(`.scene-box[data-scene-id="${scene.id}"]`);
+    const b = computeSceneBounds(scene);
+    if (el && b) el.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px;`;
+  }
+}
+
+/* ===== Status Bar ===== */
+
+function updateStatusBar() {
+  const ungrouped = state.thumbnails.filter(t => !state.shots.some(s => s.fileIds.includes(t.fileId))).length;
+  const dupes = state.files.filter(f => f.possibleDupe).length;
+  $('#stat-files').textContent = state.files.length + ' file' + (state.files.length !== 1 ? 's' : '');
+  $('#stat-scenes').textContent = state.scenes.length + ' scene' + (state.scenes.length !== 1 ? 's' : '');
+  $('#stat-shots').textContent = state.shots.length + ' shot' + (state.shots.length !== 1 ? 's' : '');
+  $('#stat-ungrouped').textContent = ungrouped + ' ungrouped';
+  $('#stat-dupes').textContent = dupes + ' dupe' + (dupes !== 1 ? 's' : '');
+  $('#stat-zoom').textContent = 'Zoom: ' + Math.round(state.zoom * 100) + '%';
+}
+
+/* ===== Naming Template ===== */
+
+function applyTemplate(fileId) {
+  const f = state.files.find(x => x.id === fileId);
+  const t = state.thumbnails.find(x => x.fileId === fileId);
+  if (!f) return '';
+
+  const shot = state.shots.find(s => s.fileIds.includes(fileId));
+  const scene = shot ? state.scenes.find(sc => sc.shotIds.includes(shot.id)) : null;
+
+  // Version: left-to-right within shot
+  let version = 1;
+  if (shot) {
+    const thumbsInShot = shot.fileIds
+      .map(fid => state.thumbnails.find(x => x.fileId === fid))
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    version = thumbsInShot.findIndex(x => x.fileId === fileId) + 1;
+  }
+
+  // Sequential number across all grouped files
+  const allGroupedFileIds = [];
+  for (const sc of state.scenes) {
+    for (const sid of sc.shotIds) {
+      const s = state.shots.find(x => x.id === sid);
+      if (s) {
+        const sorted = s.fileIds
+          .map(fid => state.thumbnails.find(x => x.fileId === fid))
+          .filter(Boolean)
+          .sort((a, b) => a.x - b.x || a.y - b.y)
+          .map(x => x.fileId);
+        allGroupedFileIds.push(...sorted);
+      }
+    }
+  }
+  // Add shots not in scenes
+  for (const s of state.shots) {
+    if (!state.scenes.some(sc => sc.shotIds.includes(s.id))) {
+      const sorted = s.fileIds
+        .map(fid => state.thumbnails.find(x => x.fileId === fid))
+        .filter(Boolean)
+        .sort((a, b) => a.x - b.x || a.y - b.y)
+        .map(x => x.fileId);
+      allGroupedFileIds.push(...sorted);
+    }
+  }
+  const seqNum = allGroupedFileIds.indexOf(fileId) + 1;
+
+  const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '';
+  const original = f.name.includes('.') ? f.name.slice(0, f.name.lastIndexOf('.')) : f.name;
+  const suffix = t ? t.suffix : '';
+  const prefix = t ? t.prefix : '';
+
+  const result = state.template
+    .replace(/\{project\}/gi, state.projectName)
+    .replace(/\{scene\}/gi, scene ? scene.name : 'UNSCENED')
+    .replace(/\{shot\}/gi, shot ? String(shot.number).padStart(3, '0') : '000')
+    .replace(/\{version\}/gi, 'v' + String(version).padStart(2, '0'))
+    .replace(/\{suffix\}/gi, suffix)
+    .replace(/\{prefix\}/gi, prefix)
+    .replace(/\{original\}/gi, original)
+    .replace(/\{date\}/gi, today())
+    .replace(/\{nn\}/gi, String(seqNum).padStart(3, '0'));
+
+  return result + ext;
+}
+
+/* ===== Rename Preview ===== */
+
+function generatePreview() {
+  const preview = [];
+  // Grouped files (in scenes)
+  for (const scene of state.scenes) {
+    for (const sid of scene.shotIds) {
+      const shot = state.shots.find(s => s.id === sid);
+      if (!shot) continue;
+      const sorted = shot.fileIds
+        .map(fid => state.thumbnails.find(t => t.fileId === fid))
+        .filter(Boolean)
+        .sort((a, b) => a.x - b.x || a.y - b.y);
+      for (const t of sorted) {
+        const f = state.files.find(x => x.id === t.fileId);
+        if (!f) continue;
+        preview.push({
+          fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId),
+          scene: scene.name, shot: shot.number, grouped: true,
+        });
+      }
+    }
+  }
+  // Shots not in scenes
+  for (const shot of state.shots) {
+    if (state.scenes.some(sc => sc.shotIds.includes(shot.id))) continue;
+    const sorted = shot.fileIds
+      .map(fid => state.thumbnails.find(t => t.fileId === fid))
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    for (const t of sorted) {
+      const f = state.files.find(x => x.id === t.fileId);
+      if (!f) continue;
+      preview.push({
+        fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId),
+        scene: '(no scene)', shot: shot.number, grouped: true,
+      });
+    }
+  }
+  // Ungrouped
+  for (const t of state.thumbnails) {
+    if (state.shots.some(s => s.fileIds.includes(t.fileId))) continue;
+    const f = state.files.find(x => x.id === t.fileId);
+    if (!f) continue;
+    preview.push({
+      fileId: t.fileId, original: f.name, newName: f.name,
+      scene: '', shot: '', grouped: false,
+    });
+  }
+  return preview;
+}
+
+function showRenamePreview() {
+  const preview = generatePreview();
+  const grouped = preview.filter(p => p.grouped);
+  const ungrouped = preview.filter(p => !p.grouped);
+
+  // Detect collisions
+  const nameCount = {};
+  for (const p of grouped) nameCount[p.newName] = (nameCount[p.newName] || 0) + 1;
+  const collisions = new Set(Object.keys(nameCount).filter(k => nameCount[k] > 1));
+  const hasCollisions = collisions.size > 0;
+
+  // Info summary
+  dom.renameInfo.innerHTML = `
+    <div class="rename-summary">
+      <span>Template: <strong style="font-family:var(--font-mono);color:var(--accent)">${esc(state.template)}</strong></span>
+      <span>Project: <strong>${esc(state.projectName)}</strong></span>
+    </div>
+    <div class="rename-summary">
+      <span>Total: <strong>${state.files.length}</strong></span>
+      <span>Grouped: <strong>${grouped.length}</strong></span>
+      <span>${state.scenes.length} scene${state.scenes.length !== 1 ? 's' : ''}</span>
+      <span>${state.shots.length} shot${state.shots.length !== 1 ? 's' : ''}</span>
+      ${ungrouped.length ? `<span class="rename-warn">${ungrouped.length} ungrouped (excluded)</span>` : ''}
+      ${hasCollisions ? `<span class="rename-warn">${collisions.size} collision${collisions.size !== 1 ? 's' : ''}</span>` : ''}
+    </div>`;
+
+  // Table
+  let html = '<table class="rename-table"><thead><tr>';
+  html += '<th>Original</th><th>Scene</th><th>Shot</th><th></th><th>New Name</th>';
+  html += '</tr></thead><tbody>';
+
+  let lastScene = null;
+  for (const p of grouped) {
+    if (p.scene !== lastScene) {
+      html += `<tr class="rename-scene-header"><td colspan="5">Scene: ${esc(p.scene)}</td></tr>`;
+      lastScene = p.scene;
+    }
+    const isCollision = collisions.has(p.newName);
+    html += `<tr class="${isCollision ? 'rename-collision' : ''}">`;
+    html += `<td title="${esc(p.original)}">${esc(p.original)}</td>`;
+    html += `<td>${esc(String(p.scene))}</td>`;
+    html += `<td>${p.shot ? String(p.shot).padStart(3, '0') : ''}</td>`;
+    html += `<td class="rename-arrow">&rarr;</td>`;
+    html += `<td class="rename-new" title="${esc(p.newName)}">${esc(p.newName)}</td>`;
+    html += '</tr>';
+  }
+
+  if (ungrouped.length > 0) {
+    html += '<tr class="rename-scene-header"><td colspan="5">Ungrouped (will NOT be exported)</td></tr>';
+    for (const p of ungrouped) {
+      html += `<tr class="rename-excluded"><td>${esc(p.original)}</td><td colspan="4">—</td></tr>`;
+    }
+  }
+
+  html += '</tbody></table>';
+  dom.renameBody.innerHTML = html;
+
+  dom.renameExportBtn.disabled = hasCollisions || grouped.length === 0;
+  dom.renameModal.classList.remove('hidden');
+}
+
+/* ===== Export ===== */
+
+async function copyFileToDirectory(file, targetDirHandle, filename) {
+  let finalName = filename;
+  const dot = filename.lastIndexOf('.');
+  const stem = dot > 0 ? filename.slice(0, dot) : filename;
+  const ext = dot > 0 ? filename.slice(dot) : '';
+  let counter = 1;
+  while (true) {
+    try {
+      await targetDirHandle.getFileHandle(finalName, { create: false });
+      finalName = `${stem}_${String(counter).padStart(3, '0')}${ext}`;
+      counter++;
+    } catch { break; }
+  }
+  const handle = await targetDirHandle.getFileHandle(finalName, { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(file);
+  await writable.close();
+}
+
+async function exportFiles() {
+  const preview = generatePreview().filter(p => p.grouped);
+  if (preview.length === 0) { alert('No grouped files to export. Assign files to shots first.'); return; }
+
+  let outDir;
+  try {
+    outDir = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (err) {
+    if (err.name !== 'AbortError') alert('Could not open folder picker: ' + err.message);
+    return;
+  }
+
+  const progressDiv = $('#rename-progress');
+  const progressText = $('#rename-progress-text');
+  const progressCount = $('#rename-progress-count');
+  const progressFill = $('#rename-progress-fill');
+  progressDiv.classList.remove('hidden');
+  dom.renameExportBtn.disabled = true;
+  dom.renameExportBtn.textContent = 'Exporting...';
+
+  let copied = 0;
+  let errors = 0;
+  const sceneNames = [...new Set(preview.map(p => p.scene))];
+
+  try {
+    // Create scene subdirectories
+    const sceneDirs = {};
+    for (const name of sceneNames) {
+      const dirName = name.replace(/[^a-zA-Z0-9_\- ]/g, '_') || 'UNSORTED';
+      sceneDirs[name] = await outDir.getDirectoryHandle(dirName, { create: true });
+    }
+
+    for (const p of preview) {
+      const f = state.files.find(x => x.id === p.fileId);
+      if (!f) continue;
+      progressText.textContent = `Copying ${p.newName}...`;
+      progressCount.textContent = `${copied + 1}/${preview.length}`;
+      progressFill.style.width = ((copied / preview.length) * 100) + '%';
+      try {
+        await copyFileToDirectory(f.file, sceneDirs[p.scene], p.newName);
+        copied++;
+      } catch (err) {
+        console.error(`Failed to copy ${f.name} → ${p.newName}:`, err);
+        errors++;
+      }
+    }
+
+    progressText.textContent = 'Done!';
+    progressCount.textContent = `${copied}/${preview.length}`;
+    progressFill.style.width = '100%';
+
+    setTimeout(() => {
+      progressDiv.classList.add('hidden');
+      dom.renameExportBtn.textContent = 'Export & Rename Files';
+      dom.renameExportBtn.disabled = false;
+      dom.renameModal.classList.add('hidden');
+      let msg = `Exported ${copied} file${copied !== 1 ? 's' : ''} to ${outDir.name}/`;
+      if (errors > 0) msg += `\n${errors} error${errors !== 1 ? 's' : ''} — check console.`;
+      alert(msg);
+    }, 500);
+  } catch (err) {
+    console.error('Export error:', err);
+    progressDiv.classList.add('hidden');
+    dom.renameExportBtn.textContent = 'Export & Rename Files';
+    dom.renameExportBtn.disabled = false;
+    alert('Export error: ' + err.message);
+  }
+}
+
+/* ===== Context Menu ===== */
+
+function showContextMenu(x, y, items) {
+  dom.ctxMenu.innerHTML = '';
+  for (const item of items) {
+    if (item === 'sep') {
+      const sep = document.createElement('div');
+      sep.className = 'ctx-sep';
+      dom.ctxMenu.appendChild(sep);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = 'ctx-item' + (item.disabled ? ' disabled' : '');
+      btn.innerHTML = esc(item.label) + (item.shortcut ? `<span class="shortcut">${item.shortcut}</span>` : '');
+      btn.addEventListener('click', () => { hideContextMenu(); if (item.action) item.action(); });
+      dom.ctxMenu.appendChild(btn);
+    }
+  }
+  dom.ctxMenu.style.left = x + 'px';
+  dom.ctxMenu.style.top = y + 'px';
+  dom.ctxMenu.classList.remove('hidden');
+
+  // Clamp to viewport
+  const rect = dom.ctxMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) dom.ctxMenu.style.left = (x - rect.width) + 'px';
+  if (rect.bottom > window.innerHeight) dom.ctxMenu.style.top = (y - rect.height) + 'px';
+}
+
+function hideContextMenu() {
+  dom.ctxMenu.classList.add('hidden');
+}
+
+function buildContextMenu(worldX, worldY, hit) {
+  const items = [];
+  const selThumbs = getSelectedFileIds();
+  const selShots = getSelectedShotIds();
+
+  if (hit && hit.type === 'thumbnail') {
+    if (selThumbs.length > 0) {
+      items.push({ label: `Create Shot (${selThumbs.length} selected)`, shortcut: 'Ctrl+G', action: () => promptCreateShot() });
+    }
+    const shot = state.shots.find(s => s.fileIds.includes(hit.id));
+    if (shot) {
+      items.push({ label: 'Remove from Shot', action: () => { pushUndo(); removeFromShot(hit.id); renderCanvas(); updateStatusBar(); } });
+    }
+    items.push('sep');
+    items.push({ label: 'Edit Suffix...', action: () => promptEditSuffix(hit.id) });
+    items.push('sep');
+    items.push({ label: 'Remove from Session', shortcut: 'Del', action: () => removeSelected() });
+  } else if (hit && hit.type === 'shot') {
+    if (selShots.length > 0) {
+      items.push({ label: `Create Scene (${selShots.length} shots)`, shortcut: 'Ctrl+Shift+G', action: () => promptCreateScene() });
+    }
+    items.push({ label: 'Rename Shot...', shortcut: 'F2', action: () => promptRenameShot(hit.id) });
+    items.push({ label: 'Dissolve Shot', action: () => dissolveShot(hit.id) });
+  } else if (hit && hit.type === 'scene') {
+    items.push({ label: 'Rename Scene...', shortcut: 'F2', action: () => promptRenameScene(hit.id) });
+    items.push({ label: 'Dissolve Scene', action: () => dissolveScene(hit.id) });
+  } else {
+    // Empty canvas
+    if (selThumbs.length > 0) {
+      items.push({ label: `Create Shot (${selThumbs.length} selected)`, shortcut: 'Ctrl+G', action: () => promptCreateShot() });
+    }
+    if (selShots.length > 0) {
+      items.push({ label: `Create Scene (${selShots.length} shots)`, shortcut: 'Ctrl+Shift+G', action: () => promptCreateScene() });
+    }
+    if (items.length === 0) {
+      items.push({ label: 'No selection', disabled: true });
+    }
+  }
+  return items;
+}
+
+/* ===== Prompts ===== */
+
+function promptCreateShot() {
+  const fids = getSelectedFileIds();
+  if (fids.length === 0) return;
+  const num = prompt('Shot number:', String(nextShotNumber()));
+  if (num === null) return;
+  createShot(fids, parseInt(num, 10) || nextShotNumber());
+}
+
+function promptCreateScene() {
+  const sids = getSelectedShotIds();
+  if (sids.length === 0) return;
+  const name = prompt('Scene name:', 'SCENE');
+  if (name === null) return;
+  createScene(sids, name.toUpperCase() || 'SCENE');
+}
+
+function promptRenameShot(shotId) {
+  const shot = state.shots.find(s => s.id === shotId);
+  if (!shot) return;
+  const num = prompt('Shot number:', String(shot.number));
+  if (num === null) return;
+  pushUndo();
+  shot.number = parseInt(num, 10) || shot.number;
+  renderCanvas();
+}
+
+function promptRenameScene(sceneId) {
+  const scene = state.scenes.find(s => s.id === sceneId);
+  if (!scene) return;
+  const name = prompt('Scene name:', scene.name);
+  if (name === null) return;
+  pushUndo();
+  scene.name = name.toUpperCase() || scene.name;
+  renderCanvas();
+}
+
+function promptEditSuffix(fileId) {
+  const t = state.thumbnails.find(x => x.fileId === fileId);
+  if (!t) return;
+  const val = prompt('Suffix (e.g., _HERO, _temp):', t.suffix);
+  if (val === null) return;
+  t.suffix = val;
+  renderCanvas();
+}
+
+/* ===== Remove Selected ===== */
+
+function removeSelected() {
+  const fileIds = getSelectedFileIds();
+  if (fileIds.length === 0) return;
+  pushUndo();
+  for (const fid of fileIds) {
+    // Remove from shots
+    removeFromShot(fid);
+    // Remove thumbnail
+    state.thumbnails = state.thumbnails.filter(t => t.fileId !== fid);
+    // Remove file & revoke URLs
+    const f = state.files.find(x => x.id === fid);
+    if (f) {
+      if (f.objectUrl) URL.revokeObjectURL(f.objectUrl);
+      if (f.thumbnailUrl) URL.revokeObjectURL(f.thumbnailUrl);
+    }
+    state.files = state.files.filter(x => x.id !== fid);
+  }
+  state.selectedItems = [];
+  renderCanvas();
+  updateStatusBar();
+  if (state.files.length === 0) showDropZone();
+}
+
+/* ===== Session Save / Load ===== */
+
+function saveSession() {
+  const data = {
+    projectName: state.projectName,
+    template: state.template,
+    shotStartNumber: state.shotStartNumber,
+    shotIncrement: state.shotIncrement,
+    thumbSize: state.thumbSize,
+    panX: state.panX, panY: state.panY, zoom: state.zoom,
+    files: state.files.map(f => ({ id: f.id, name: f.name, relativePath: f.relativePath, size: f.size })),
+    thumbnails: state.thumbnails,
+    shots: state.shots,
+    scenes: state.scenes,
+    nextId: state.nextId,
+    nextShotId: state.nextShotId,
+    nextSceneId: state.nextSceneId,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (state.projectName || 'project') + '.shotboard.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function loadSession() {
+  const [fileHandle] = await window.showOpenFilePicker({
+    types: [{ description: 'ShotBoard Session', accept: { 'application/json': ['.json', '.shotboard.json'] } }],
+  }).catch(() => [null]);
+  if (!fileHandle) return;
+  const file = await fileHandle.getFile();
+  const text = await file.text();
+  const data = JSON.parse(text);
+
+  state.projectName = data.projectName || 'PROJECT';
+  state.template = data.template || '{project}_{scene}_SH{shot}_{version}';
+  state.shotStartNumber = data.shotStartNumber || 10;
+  state.shotIncrement = data.shotIncrement || 10;
+  state.thumbSize = data.thumbSize || 160;
+  state.panX = data.panX || 0;
+  state.panY = data.panY || 0;
+  state.zoom = data.zoom || 1;
+  state.thumbnails = data.thumbnails || [];
+  state.shots = data.shots || [];
+  state.scenes = data.scenes || [];
+  state.nextShotId = data.nextShotId || 0;
+  state.nextSceneId = data.nextSceneId || 0;
+  state.selectedItems = [];
+  state.undoStack = [];
+
+  // Mark files as missing (to be re-linked on import)
+  state.files = (data.files || []).map(f => ({
+    ...f, file: null, objectUrl: null, thumbnailUrl: null, possibleDupe: false,
+  }));
+  state.nextId = data.nextId || state.files.length;
+
+  // Update UI
+  $('#input-project').value = state.projectName;
+  $('#input-template').value = state.template;
+  $('#input-shot-start').value = state.shotStartNumber;
+  $('#input-shot-inc').value = state.shotIncrement;
+  $('#input-thumb-size').value = state.thumbSize;
+  document.documentElement.style.setProperty('--thumb-size', state.thumbSize + 'px');
+  $('#thumb-size-label').textContent = state.thumbSize + 'px';
+
+  showCanvas();
+  renderCanvas();
+  updateStatusBar();
+  applyTransform();
+
+  alert('Session loaded. Import source folders to re-link files. Missing files will appear as placeholders.');
+}
+
+/* ===== View Switching ===== */
+
+function showCanvas() {
+  dom.dropZone.classList.add('hidden');
+  dom.viewport.classList.remove('hidden');
+}
+
+function showDropZone() {
+  dom.dropZone.classList.remove('hidden');
+  dom.viewport.classList.add('hidden');
+}
+
+/* ===== Drag & Drop Files ===== */
+
+let dragCounter = 0;
+
+function onDragEnter(e) {
+  e.preventDefault();
+  dragCounter++;
+  if (state.files.length > 0 && dragCounter === 1) dom.dropOverlay.classList.remove('hidden');
+  if (state.files.length === 0) dom.dropZone.classList.add('drag-over');
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}
+
+function onDragLeave(e) {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dom.dropOverlay.classList.add('hidden');
+    dom.dropZone.classList.remove('drag-over');
+  }
+}
+
+async function onDrop(e) {
+  e.preventDefault();
+  dragCounter = 0;
+  dom.dropOverlay.classList.add('hidden');
+  dom.dropZone.classList.remove('drag-over');
+
+  const newFileIds = await ingestFiles(e.dataTransfer);
+  if (newFileIds.length > 0) {
+    autoArrange(newFileIds);
+    showCanvas();
+    renderCanvas();
+    updateStatusBar();
+    extractAllThumbnails(newFileIds);
+
+    // Re-link any session-loaded files
+    relinkFiles();
+  }
+}
+
+function relinkFiles() {
+  for (const f of state.files) {
+    if (f.file) continue; // already linked
+    const match = state.files.find(x => x.file && x.relativePath === f.relativePath && x.id !== f.id);
+    if (match) {
+      f.file = match.file;
+      f.objectUrl = match.objectUrl;
+      f.thumbnailUrl = match.thumbnailUrl;
+    }
+  }
+}
+
+/* ===== Canvas Interaction: Pointer Events ===== */
+
+function onCanvasMouseDown(e) {
+  if (e.button === 2) return; // right-click handled by contextmenu
+  hideContextMenu();
+
+  const world = screenToWorld(e.clientX, e.clientY);
+
+  // Pan: space held or middle mouse
+  if (state.spaceHeld || e.button === 1) {
+    e.preventDefault();
+    dom.viewport.classList.add('panning');
+    state.dragState = { type: 'pan', startX: e.clientX, startY: e.clientY, startPanX: state.panX, startPanY: state.panY };
+    return;
+  }
+
+  const hit = hitTest(world.x, world.y);
+
+  if (hit) {
+    // Select on click
+    if (!isSelected(hit.type, hit.id) && !e.shiftKey) {
+      selectItem(hit.type, hit.id, false);
+    } else if (e.shiftKey) {
+      selectItem(hit.type, hit.id, true);
+    }
+
+    // Start drag
+    if (hit.type === 'thumbnail' || hit.type === 'shot' || hit.type === 'scene') {
+      state.dragState = {
+        type: 'move', target: hit,
+        startWorldX: world.x, startWorldY: world.y,
+        moved: false,
+      };
+    }
+  } else {
+    // Empty canvas: start marquee
+    if (!e.shiftKey) deselectAll();
+    state.dragState = {
+      type: 'marquee',
+      startX: e.clientX, startY: e.clientY,
+      startWorldX: world.x, startWorldY: world.y,
+    };
+  }
+}
+
+function onCanvasMouseMove(e) {
+  if (!state.dragState) return;
+  const ds = state.dragState;
+
+  if (ds.type === 'pan') {
+    state.panX = ds.startPanX + (e.clientX - ds.startX);
+    state.panY = ds.startPanY + (e.clientY - ds.startY);
+    applyTransform();
+    updateStatusBar();
+    return;
+  }
+
+  if (ds.type === 'marquee') {
+    const rect = dom.viewport.getBoundingClientRect();
+    const x1 = Math.min(ds.startX, e.clientX) - rect.left;
+    const y1 = Math.min(ds.startY, e.clientY) - rect.top;
+    const w = Math.abs(e.clientX - ds.startX);
+    const h = Math.abs(e.clientY - ds.startY);
+    dom.marquee.classList.remove('hidden');
+    dom.marquee.style.cssText = `left:${x1}px;top:${y1}px;width:${w}px;height:${h}px;`;
+    return;
+  }
+
+  if (ds.type === 'move') {
+    const world = screenToWorld(e.clientX, e.clientY);
+    const dx = world.x - ds.startWorldX;
+    const dy = world.y - ds.startWorldY;
+
+    if (!ds.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      ds.moved = true;
+    }
+    if (!ds.moved) return;
+
+    // Move all selected items
+    const selThumbs = getSelectedFileIds();
+    const selShots = getSelectedShotIds();
+
+    // Collect all file IDs to move (including those in selected shots)
+    const fileIdsToMove = new Set(selThumbs);
+    for (const sid of selShots) {
+      const shot = state.shots.find(s => s.id === sid);
+      if (shot) shot.fileIds.forEach(fid => fileIdsToMove.add(fid));
+    }
+
+    // Also handle selected scenes
+    const selScenes = state.selectedItems.filter(s => s.type === 'scene').map(s => s.id);
+    for (const scid of selScenes) {
+      const scene = state.scenes.find(s => s.id === scid);
+      if (scene) {
+        for (const sid of scene.shotIds) {
+          const shot = state.shots.find(s => s.id === sid);
+          if (shot) shot.fileIds.forEach(fid => fileIdsToMove.add(fid));
+        }
+      }
+    }
+
+    for (const fid of fileIdsToMove) {
+      const t = state.thumbnails.find(x => x.fileId === fid);
+      if (t) { t.x += dx; t.y += dy; }
+    }
+
+    ds.startWorldX = world.x;
+    ds.startWorldY = world.y;
+    updatePositions();
+  }
+}
+
+function onCanvasMouseUp(e) {
+  if (!state.dragState) return;
+  const ds = state.dragState;
+  state.dragState = null;
+  dom.viewport.classList.remove('panning');
+
+  if (ds.type === 'pan') return;
+
+  if (ds.type === 'marquee') {
+    dom.marquee.classList.add('hidden');
+    const endWorld = screenToWorld(e.clientX, e.clientY);
+    const rx = Math.min(ds.startWorldX, endWorld.x);
+    const ry = Math.min(ds.startWorldY, endWorld.y);
+    const rw = Math.abs(endWorld.x - ds.startWorldX);
+    const rh = Math.abs(endWorld.y - ds.startWorldY);
+    if (rw > 5 || rh > 5) {
+      const found = itemsInRect(rx, ry, rw, rh);
+      state.selectedItems = found;
+      updateSelectionVisuals();
+    }
+    return;
+  }
+
+  if (ds.type === 'move' && ds.moved) {
+    // Auto-reparent: check if thumbnails were dropped into/out of shots
+    const movedThumbs = getSelectedFileIds();
+    for (const fid of movedThumbs) {
+      const t = state.thumbnails.find(x => x.fileId === fid);
+      if (!t) continue;
+      const cx = t.x + state.thumbSize / 2;
+      const cy = t.y + (state.thumbSize * 9/16) / 2;
+
+      const currentShot = state.shots.find(s => s.fileIds.includes(fid));
+      let targetShot = null;
+
+      for (const shot of state.shots) {
+        if (currentShot && shot.id === currentShot.id) continue;
+        const b = computeShotBounds(shot);
+        if (b && cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+          targetShot = shot;
+          break;
+        }
+      }
+
+      if (targetShot && (!currentShot || currentShot.id !== targetShot.id)) {
+        // Move into target shot
+        if (currentShot) {
+          const idx = currentShot.fileIds.indexOf(fid);
+          if (idx !== -1) currentShot.fileIds.splice(idx, 1);
+        }
+        if (!targetShot.fileIds.includes(fid)) targetShot.fileIds.push(fid);
+      } else if (currentShot && !targetShot) {
+        // Check if still inside current shot
+        const b = computeShotBounds(currentShot);
+        if (b && !(cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h)) {
+          // Dragged out
+          const idx = currentShot.fileIds.indexOf(fid);
+          if (idx !== -1) currentShot.fileIds.splice(idx, 1);
+        }
+      }
+    }
+
+    // Clean up empty shots and scenes
+    state.shots = state.shots.filter(s => s.fileIds.length > 0);
+    const shotIds = new Set(state.shots.map(s => s.id));
+    for (const scene of state.scenes) scene.shotIds = scene.shotIds.filter(sid => shotIds.has(sid));
+    state.scenes = state.scenes.filter(s => s.shotIds.length > 0);
+
+    renderCanvas();
+    updateStatusBar();
+  }
+}
+
+/* ===== Wheel: Zoom ===== */
+
+function onCanvasWheel(e) {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    const delta = -e.deltaY * ZOOM_STEP;
+    const newZoom = clamp(state.zoom * (1 + delta * 5), MIN_ZOOM, MAX_ZOOM);
+    zoomAtPoint(newZoom, e.clientX, e.clientY);
+  } else {
+    // Scroll to pan
+    state.panX -= e.deltaX;
+    state.panY -= e.deltaY;
+    applyTransform();
+  }
+}
+
+/* ===== Double-click: Video Playback / Inline Edit ===== */
+
+function onCanvasDblClick(e) {
+  const world = screenToWorld(e.clientX, e.clientY);
+  const hit = hitTest(world.x, world.y);
+  if (!hit) return;
+
+  if (hit.type === 'thumbnail') {
+    const f = state.files.find(x => x.id === hit.id);
+    if (f && f.objectUrl) {
+      dom.videoPlayer.src = f.objectUrl;
+      dom.videoOverlay.classList.remove('hidden');
+      dom.videoPlayer.play();
+    }
+  } else if (hit.type === 'shot') {
+    promptRenameShot(hit.id);
+  } else if (hit.type === 'scene') {
+    promptRenameScene(hit.id);
+  }
+}
+
+/* ===== Context Menu Handler ===== */
+
+function onCanvasContextMenu(e) {
+  e.preventDefault();
+  const world = screenToWorld(e.clientX, e.clientY);
+  const hit = hitTest(world.x, world.y);
+
+  // If right-clicking on an item that's not selected, select it
+  if (hit && !isSelected(hit.type, hit.id)) {
+    selectItem(hit.type, hit.id, false);
+  }
+
+  const items = buildContextMenu(world.x, world.y, hit);
+  showContextMenu(e.clientX, e.clientY, items);
+}
+
+/* ===== Keyboard Shortcuts ===== */
+
+function onKeyDown(e) {
+  // Ignore if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+    if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+
+  if (e.key === ' ') {
+    e.preventDefault();
+    state.spaceHeld = true;
+    dom.viewport.style.cursor = 'grab';
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    hideContextMenu();
+    dom.renameModal.classList.add('hidden');
+    if (!dom.videoOverlay.classList.contains('hidden')) {
+      dom.videoPlayer.pause();
+      dom.videoPlayer.src = '';
+      dom.videoOverlay.classList.add('hidden');
+    }
+    deselectAll();
+    return;
+  }
+
+  if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedItems.length > 0) {
+    e.preventDefault();
+    removeSelected();
+    return;
+  }
+
+  if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    selectAll();
+    return;
+  }
+
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    undo();
+    return;
+  }
+
+  if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    saveSession();
+    return;
+  }
+
+  if (e.key === 'g' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+    e.preventDefault();
+    promptCreateShot();
+    return;
+  }
+
+  if (e.key === 'G' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+    e.preventDefault();
+    promptCreateScene();
+    return;
+  }
+
+  if (e.key === 'F2') {
+    e.preventDefault();
+    const selShot = state.selectedItems.find(s => s.type === 'shot');
+    const selScene = state.selectedItems.find(s => s.type === 'scene');
+    if (selShot) promptRenameShot(selShot.id);
+    else if (selScene) promptRenameScene(selScene.id);
+    return;
+  }
+}
+
+function onKeyUp(e) {
+  if (e.key === ' ') {
+    state.spaceHeld = false;
+    dom.viewport.style.cursor = '';
+  }
+}
+
+/* ===== Token Chips ===== */
+
+function onTokenChipClick(e) {
+  const chip = e.target.closest('.token-chip');
+  if (!chip) return;
+  const token = chip.dataset.token;
+  const input = $('#input-template');
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const val = input.value;
+  input.value = val.slice(0, start) + token + val.slice(end);
+  input.selectionStart = input.selectionEnd = start + token.length;
+  input.focus();
+  state.template = input.value;
+}
+
+/* ===== Event Wiring ===== */
+
+// File drag-drop
+document.addEventListener('dragenter', onDragEnter);
+document.addEventListener('dragover', onDragOver);
+document.addEventListener('dragleave', onDragLeave);
+document.addEventListener('drop', onDrop);
+
+// Canvas interactions
+dom.viewport.addEventListener('mousedown', onCanvasMouseDown);
+document.addEventListener('mousemove', onCanvasMouseMove);
+document.addEventListener('mouseup', onCanvasMouseUp);
+dom.viewport.addEventListener('wheel', onCanvasWheel, { passive: false });
+dom.viewport.addEventListener('dblclick', onCanvasDblClick);
+dom.viewport.addEventListener('contextmenu', onCanvasContextMenu);
+
+// Keyboard
+document.addEventListener('keydown', onKeyDown);
+document.addEventListener('keyup', onKeyUp);
+
+// Close context menu on click elsewhere
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#context-menu')) hideContextMenu();
+});
+
+// Video overlay close
+dom.videoOverlay.addEventListener('click', (e) => {
+  if (e.target === dom.videoOverlay) {
+    dom.videoPlayer.pause();
+    dom.videoPlayer.src = '';
+    dom.videoOverlay.classList.add('hidden');
+  }
+});
+
+// Import button
+$('#btn-import').addEventListener('click', async () => {
+  const newFileIds = await selectSourceFolder();
+  if (newFileIds.length > 0) {
+    autoArrange(newFileIds);
+    showCanvas();
+    renderCanvas();
+    updateStatusBar();
+    extractAllThumbnails(newFileIds);
+    relinkFiles();
+  }
+});
+
+// Select Source Folder (drop zone button)
+$('#btn-select-source').addEventListener('click', async () => {
+  const newFileIds = await selectSourceFolder();
+  if (newFileIds.length > 0) {
+    autoArrange(newFileIds);
+    showCanvas();
+    renderCanvas();
+    updateStatusBar();
+    extractAllThumbnails(newFileIds);
+  }
+});
+
+// Save / Load
+$('#btn-save').addEventListener('click', saveSession);
+$('#btn-load').addEventListener('click', async () => {
+  try { await loadSession(); } catch (err) {
+    if (err.name !== 'AbortError') console.error('Load error:', err);
+  }
+});
+
+// Detect Dupes
+$('#btn-dupes').addEventListener('click', flagDuplicates);
+
+// Preview Rename
+$('#btn-preview').addEventListener('click', showRenamePreview);
+
+// Export button
+$('#btn-export').addEventListener('click', () => {
+  showRenamePreview();
+});
+
+// Rename modal
+$('#rename-close').addEventListener('click', () => dom.renameModal.classList.add('hidden'));
+$('#rename-cancel').addEventListener('click', () => dom.renameModal.classList.add('hidden'));
+$('#rename-export').addEventListener('click', exportFiles);
+dom.renameModal.addEventListener('click', (e) => {
+  if (e.target === dom.renameModal) dom.renameModal.classList.add('hidden');
+});
+
+// Toolbar inputs
+$('#input-project').addEventListener('input', (e) => { state.projectName = e.target.value; });
+$('#input-template').addEventListener('input', (e) => { state.template = e.target.value; });
+$('#input-shot-start').addEventListener('input', (e) => { state.shotStartNumber = parseInt(e.target.value) || 10; });
+$('#input-shot-inc').addEventListener('input', (e) => { state.shotIncrement = parseInt(e.target.value) || 10; });
+$('#input-thumb-size').addEventListener('input', (e) => {
+  state.thumbSize = parseInt(e.target.value);
+  document.documentElement.style.setProperty('--thumb-size', state.thumbSize + 'px');
+  $('#thumb-size-label').textContent = state.thumbSize + 'px';
+  renderCanvas();
+});
+
+// Token chips
+$$('.token-chip').forEach(chip => chip.addEventListener('click', onTokenChipClick));
+
+// Prevent default context menu on the whole page
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('#canvas-viewport') || e.target.closest('#context-menu')) return;
+  // Allow default on inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+});
+
+/* ===== Init ===== */
+updateStatusBar();
+applyTransform();
+
+</script>
+</body>
+</html>
