@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShotTriage — VFX Shot Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #141414;
+      --bg-secondary: #1c1c1c;
+      --bg-surface: #242424;
+      --bg-elevated: #2c2c2c;
+      --border: #383838;
+      --border-light: #444;
+      --text-primary: #e8e8e8;
+      --text-secondary: #999;
+      --text-muted: #666;
+      --accent: #4a9eff;
+      --accent-dim: rgba(74, 158, 255, 0.15);
+      --yes: #4caf50;
+      --yes-dim: rgba(76, 175, 80, 0.15);
+      --maybe: #ff9800;
+      --maybe-dim: rgba(255, 152, 0, 0.15);
+      --no: #ef5350;
+      --no-dim: rgba(239, 83, 80, 0.15);
+      --nuke: #9c27b0;
+      --nuke-dim: rgba(156, 39, 176, 0.15);
+      --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      --radius: 6px;
+      --radius-lg: 10px;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; font-size: inherit; }
+    input { font-family: inherit; font-size: inherit; color: inherit; }
+    .hidden { display: none !important; }
+
+    /* ===== Header ===== */
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border); gap: 16px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+    .header-left h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+    .header-left h1 span { color: var(--accent); }
+    .view-toggle { display: flex; gap: 2px; background: var(--bg-primary); border-radius: var(--radius); padding: 2px; }
+    .view-toggle button {
+      padding: 5px 14px; border-radius: 4px; font-size: 12px; font-weight: 500;
+      color: var(--text-secondary); transition: all 0.15s;
+    }
+    .view-toggle button.active { background: var(--bg-elevated); color: var(--text-primary); }
+    .header-center { display: flex; flex-direction: column; gap: 6px; flex: 1; max-width: 500px; min-width: 200px; }
+    .progress-stats { display: flex; gap: 12px; font-size: 12px; justify-content: center; flex-wrap: wrap; }
+    .stat { white-space: nowrap; }
+    .stat strong { font-weight: 600; }
+    .stat.s-total strong { color: var(--text-primary); }
+    .stat.s-yes strong { color: var(--yes); }
+    .stat.s-maybe strong { color: var(--maybe); }
+    .stat.s-no strong { color: var(--no); }
+    .stat.s-nuke strong { color: var(--nuke); }
+    .stat.s-unsorted strong { color: var(--text-secondary); }
+    .progress-bar {
+      width: 100%; height: 4px; background: var(--bg-primary);
+      border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; border-radius: 2px; }
+    .header-right { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn {
+      padding: 6px 14px; border-radius: var(--radius); font-size: 12px; font-weight: 500;
+      transition: all 0.15s; border: 1px solid var(--border);
+    }
+    .btn:hover { border-color: var(--border-light); background: var(--bg-elevated); }
+    .btn-accent { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .btn-accent:hover { background: var(--accent); color: #000; }
+    .btn-danger { color: var(--no); }
+    .btn-danger:hover { background: var(--no-dim); }
+
+    /* ===== Toolbar ===== */
+    #toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .filter-bar { display: flex; gap: 4px; }
+    .filter-btn {
+      padding: 5px 12px; border-radius: var(--radius); font-size: 12px;
+      font-weight: 500; color: var(--text-secondary); transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .filter-btn:hover { color: var(--text-primary); background: var(--bg-elevated); }
+    .filter-btn.active { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border); }
+    .filter-btn .count { margin-left: 4px; opacity: 0.6; }
+    #search-input {
+      background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 6px 12px; width: 220px; outline: none; color: var(--text-primary);
+    }
+    #search-input:focus { border-color: var(--accent); }
+    #search-input::placeholder { color: var(--text-muted); }
+
+    /* ===== Main Content ===== */
+    #main { padding: 20px; min-height: calc(100vh - 100px); }
+
+    /* ===== Drop Zone (initial) ===== */
+    #drop-zone {
+      display: flex; align-items: center; justify-content: center;
+      min-height: calc(100vh - 110px);
+      border: 2px dashed var(--border); border-radius: var(--radius-lg);
+      transition: all 0.2s;
+    }
+    #drop-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .drop-content { text-align: center; padding: 40px; }
+    .drop-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+    .drop-content h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .drop-content p { color: var(--text-secondary); font-size: 14px; }
+
+    /* ===== Drop Overlay (for adding more files) ===== */
+    #drop-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(10, 10, 10, 0.85);
+      display: flex; align-items: center; justify-content: center;
+      border: 3px dashed var(--accent);
+    }
+    #drop-overlay .overlay-text { font-size: 22px; font-weight: 600; color: var(--accent); }
+
+    /* ===== Grid View ===== */
+    .group { margin-bottom: 24px; }
+    .group-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 0; margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .group-name { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+    .group-count { font-size: 12px; color: var(--text-muted); }
+    .group-actions { margin-left: auto; display: flex; gap: 4px; }
+    .group-btn {
+      padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500;
+      border: 1px solid var(--border); transition: all 0.15s;
+    }
+    .group-btn:hover { border-color: var(--border-light); }
+    .group-btn.g-yes:hover { background: var(--yes-dim); color: var(--yes); border-color: var(--yes); }
+    .group-btn.g-maybe:hover { background: var(--maybe-dim); color: var(--maybe); border-color: var(--maybe); }
+    .group-btn.g-no:hover { background: var(--no-dim); color: var(--no); border-color: var(--no); }
+    .group-btn.g-nuke:hover { background: var(--nuke-dim); color: var(--nuke); border-color: var(--nuke); }
+    .group-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    /* ===== Card ===== */
+    .card {
+      background: var(--bg-surface); border-radius: var(--radius);
+      border: 1px solid var(--border); border-left: 3px solid var(--border-light);
+      overflow: hidden; transition: border-color 0.15s;
+    }
+    .card[data-status="yes"] { border-left-color: var(--yes); }
+    .card[data-status="maybe"] { border-left-color: var(--maybe); }
+    .card[data-status="no"] { border-left-color: var(--no); }
+    .card[data-status="nuke"] { border-left-color: var(--nuke); }
+    .card-video {
+      aspect-ratio: 16/9; background: #000; position: relative; overflow: hidden;
+    }
+    .card-video video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .card-video .video-error {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); font-size: 12px; font-family: var(--font-mono);
+    }
+    .card-body { padding: 10px; }
+    .card-filename {
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .card-meta {
+      display: flex; gap: 8px; font-size: 11px; color: var(--text-muted);
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .card-meta span { white-space: nowrap; }
+    .card-dupe-badge {
+      display: inline-block; background: #c0392b; color: #fff; font-size: 10px; font-weight: 700;
+      padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle;
+      letter-spacing: 0.5px;
+    }
+    .card-actions { display: flex; gap: 4px; }
+    .triage-btn {
+      flex: 1; padding: 5px 0; border-radius: 4px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border); transition: all 0.15s; text-align: center;
+    }
+    .triage-btn:hover { border-color: var(--border-light); }
+    .triage-btn.t-yes:hover, .triage-btn.t-yes.active { background: var(--yes-dim); color: var(--yes); border-color: var(--yes); }
+    .triage-btn.t-maybe:hover, .triage-btn.t-maybe.active { background: var(--maybe-dim); color: var(--maybe); border-color: var(--maybe); }
+    .triage-btn.t-no:hover, .triage-btn.t-no.active { background: var(--no-dim); color: var(--no); border-color: var(--no); }
+    .triage-btn.t-nuke:hover, .triage-btn.t-nuke.active { background: var(--nuke-dim); color: var(--nuke); border-color: var(--nuke); }
+
+    /* ===== Swipe View ===== */
+    #swipe-view { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 10px; }
+    .swipe-counter { font-size: 14px; color: var(--text-secondary); }
+    .swipe-counter strong { color: var(--text-primary); }
+    .swipe-video-wrap {
+      width: 100%; max-width: 960px; aspect-ratio: 16/9;
+      background: #000; border-radius: var(--radius-lg); overflow: hidden;
+    }
+    .swipe-video-wrap video { width: 100%; height: 100%; object-fit: contain; }
+    .swipe-info {
+      text-align: center; font-family: var(--font-mono); font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .swipe-info .swipe-filename { color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 4px; }
+    .swipe-actions { display: flex; gap: 12px; }
+    .swipe-btn {
+      padding: 14px 36px; border-radius: var(--radius-lg); font-size: 16px; font-weight: 700;
+      border: 2px solid var(--border); transition: all 0.15s; min-width: 140px;
+    }
+    .swipe-btn.s-no { color: var(--no); }
+    .swipe-btn.s-no:hover { background: var(--no-dim); border-color: var(--no); }
+    .swipe-btn.s-maybe { color: var(--maybe); }
+    .swipe-btn.s-maybe:hover { background: var(--maybe-dim); border-color: var(--maybe); }
+    .swipe-btn.s-yes { color: var(--yes); }
+    .swipe-btn.s-yes:hover { background: var(--yes-dim); border-color: var(--yes); }
+    .swipe-btn.s-nuke { color: var(--nuke); }
+    .swipe-btn.s-nuke:hover { background: var(--nuke-dim); border-color: var(--nuke); }
+    .swipe-done { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+    .swipe-done h2 { font-size: 22px; margin-bottom: 8px; color: var(--text-primary); }
+
+    /* ===== Rename View ===== */
+    #rename-view { max-width: 960px; margin: 0 auto; }
+    #rename-settings {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px; margin-bottom: 20px;
+    }
+    .rename-settings-row {
+      display: flex; gap: 16px; margin-bottom: 10px;
+    }
+    .rename-settings-row label {
+      flex: 1; font-size: 12px; font-weight: 500; color: var(--text-secondary);
+    }
+    .rename-settings-row input {
+      display: block; width: 100%; margin-top: 6px;
+      background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 7px 10px; color: var(--text-primary); outline: none;
+      font-family: var(--font-mono); font-size: 13px;
+    }
+    .rename-settings-row input:focus { border-color: var(--accent); }
+    .rename-tokens {
+      font-size: 11px; color: var(--text-muted);
+    }
+    .rename-tokens code {
+      background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;
+      font-size: 11px; color: var(--accent); margin-left: 2px;
+    }
+    .rename-action-row {
+      display: flex; align-items: center; gap: 12px; margin-top: 14px;
+    }
+    .rename-action-row .btn { padding: 8px 20px; }
+    .rename-action-hint { font-size: 12px; color: var(--text-muted); }
+    .rename-action-hint.warn { color: var(--no); }
+    #rename-progress { margin-top: 12px; }
+    .rename-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px; gap: 12px;
+    }
+    .rename-header h2 { font-size: 16px; font-weight: 600; }
+    .rename-count { font-size: 12px; color: var(--text-muted); }
+    .rename-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px; font-family: var(--font-mono);
+    }
+    .rename-table th {
+      text-align: left; padding: 8px 12px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text-muted); border-bottom: 1px solid var(--border);
+    }
+    .rename-table td {
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;
+    }
+    .rename-table tr:hover { background: var(--bg-elevated); }
+    .rename-arrow { color: var(--text-muted); text-align: center; font-size: 14px; }
+    .rename-new { color: var(--accent); }
+    .rename-table tr.rename-unchanged td { opacity: 0.4; }
+    .rename-table tr.rename-unchanged .rename-new { color: var(--text-muted); }
+    .rename-table tr.rename-conflict td { background: rgba(239, 68, 68, 0.08); }
+    .rename-table tr.rename-conflict .rename-new { color: var(--no); }
+    .rename-summary {
+      display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    .rename-summary strong { font-weight: 600; }
+    .rename-summary .rename-warn { color: var(--no); font-weight: 600; }
+    .rename-empty {
+      text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 14px;
+    }
+
+    /* ===== Empty State ===== */
+    #empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 14px; }
+
+    /* ===== Modal ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-box {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px; width: 440px; max-width: 90vw;
+    }
+    .modal-box h2 { font-size: 18px; margin-bottom: 20px; }
+    .modal-box label { display: block; margin-bottom: 14px; font-size: 13px; color: var(--text-secondary); }
+    .modal-box input[type="text"] {
+      display: block; width: 100%; margin-top: 6px;
+      background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 12px; color: var(--text-primary); outline: none;
+      font-family: var(--font-mono); font-size: 13px;
+    }
+    .modal-box input[type="text"]:focus { border-color: var(--accent); }
+    .source-hint { font-size: 11px; color: var(--text-muted); margin-top: -8px; margin-bottom: 14px; }
+    .output-row { display: flex; gap: 8px; margin-top: 6px; }
+    .output-row input { flex: 1; }
+    .output-row .btn { flex-shrink: 0; padding: 8px 14px; }
+    .export-note { font-size: 12px; color: var(--yes); margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-actions .btn { padding: 8px 20px; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Header ===== -->
+  <header id="header">
+    <div class="header-left">
+      <h1>Shot<span>Triage</span></h1>
+      <div class="view-toggle hidden" id="view-toggle">
+        <button class="active" data-view="grid">Grid</button>
+        <button data-view="swipe">Swipe</button>
+        <button data-view="rename">Rename</button>
+      </div>
+    </div>
+    <div class="header-center hidden" id="header-stats">
+      <div class="progress-stats">
+        <span class="stat s-total">Total: <strong id="count-total">0</strong></span>
+        <span class="stat s-yes">Yes: <strong id="count-yes">0</strong></span>
+        <span class="stat s-maybe">Maybe: <strong id="count-maybe">0</strong></span>
+        <span class="stat s-no">No: <strong id="count-no">0</strong></span>
+        <span class="stat s-nuke">Nuke: <strong id="count-nuke">0</strong></span>
+        <span class="stat s-unsorted">Unsorted: <strong id="count-unsorted">0</strong></span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+    <div class="header-right hidden" id="header-actions">
+      <button class="btn" id="btn-undo" title="Undo last action (U)">Undo</button>
+      <button class="btn btn-accent" id="btn-sort">Sort Files</button>
+      <button class="btn btn-danger" id="btn-clear">Clear All</button>
+    </div>
+  </header>
+
+  <!-- ===== Toolbar ===== -->
+  <div id="toolbar" class="hidden">
+    <div class="filter-bar">
+      <button class="filter-btn active" data-filter="all">All <span class="count" id="fcount-all"></span></button>
+      <button class="filter-btn" data-filter="unsorted">Unsorted <span class="count" id="fcount-unsorted"></span></button>
+      <button class="filter-btn" data-filter="yes">Yes <span class="count" id="fcount-yes"></span></button>
+      <button class="filter-btn" data-filter="maybe">Maybe <span class="count" id="fcount-maybe"></span></button>
+      <button class="filter-btn" data-filter="no">No <span class="count" id="fcount-no"></span></button>
+      <button class="filter-btn" data-filter="nuke">Nuke <span class="count" id="fcount-nuke"></span></button>
+    </div>
+    <input type="text" id="search-input" placeholder="Search filename...">
+  </div>
+
+  <!-- ===== Main ===== -->
+  <main id="main">
+    <div id="drop-zone">
+      <div class="drop-content">
+        <div class="drop-icon">&darr;</div>
+        <h2>Drop video folders here</h2>
+        <p>Drag one or more folders containing MP4, MOV, WebM, or other video files.</p>
+        <p style="margin-top: 16px; color: var(--text-muted);">— or —</p>
+        <button class="btn btn-accent" id="btn-select-source" style="margin-top: 12px; padding: 10px 24px; font-size: 14px;">
+          Select Source Folder
+        </button>
+      </div>
+    </div>
+    <div id="grid-view" class="hidden"></div>
+    <div id="swipe-view" class="hidden"></div>
+    <div id="rename-view" class="hidden">
+      <div id="rename-settings">
+        <div class="rename-settings-row">
+          <label>Project name
+            <input type="text" id="rename-project" value="project" spellcheck="false">
+          </label>
+          <label>Naming template
+            <input type="text" id="rename-template" value="{project}_{scene}_{shot}_{take}" spellcheck="false">
+          </label>
+        </div>
+        <div class="rename-tokens">Tokens: <code>{project}</code> <code>{scene}</code> <code>{shot}</code> <code>{take}</code></div>
+        <div class="rename-action-row">
+          <button class="btn btn-accent" id="btn-rename" disabled>Rename Files</button>
+          <button class="btn" id="btn-rename-copy" disabled>Copy Table to Clipboard</button>
+          <span class="rename-action-hint" id="rename-hint"></span>
+        </div>
+        <div id="rename-progress" class="hidden">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span id="rename-progress-text">Copying files...</span>
+            <span id="rename-progress-count">0/0</span>
+          </div>
+          <div class="progress-bar" style="height: 6px;">
+            <div class="progress-fill" id="rename-progress-fill" style="background: var(--accent);"></div>
+          </div>
+        </div>
+      </div>
+      <div id="rename-content"></div>
+    </div>
+    <div id="empty-state" class="hidden">No shots match the current filter.</div>
+  </main>
+
+  <!-- ===== Drop Overlay (when adding more files) ===== -->
+  <div id="drop-overlay" class="hidden">
+    <span class="overlay-text">Drop folders to add more shots</span>
+  </div>
+
+  <!-- ===== Sort Files Modal ===== -->
+  <div id="sort-modal" class="hidden">
+    <div class="modal-overlay">
+      <div class="modal-box">
+        <h2>Sort Files</h2>
+        <p class="export-note" style="margin-bottom: 16px;">
+          Files marked YES will be copied to <strong>YES/</strong>, MAYBE to <strong>MAYBE/</strong>, NUKE to <strong>DELETE/</strong>.
+        </p>
+        <label>
+          Output folder:
+          <div class="output-row">
+            <input type="text" id="sort-output" placeholder="Select a folder..." readonly>
+            <button class="btn" id="sort-browse">Browse...</button>
+          </div>
+        </label>
+        <div id="sort-progress" class="hidden" style="margin-top: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span id="sort-progress-text">Copying files...</span>
+            <span id="sort-progress-count">0/0</span>
+          </div>
+          <div class="progress-bar" style="height: 6px;">
+            <div class="progress-fill" id="sort-progress-fill" style="background: var(--yes);"></div>
+          </div>
+        </div>
+        <div class="modal-actions" style="margin-top: 20px;">
+          <button class="btn" id="sort-cancel">Cancel</button>
+          <button class="btn btn-accent" id="sort-confirm">Sort Files</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ===================================================================
+   ShotTriage — VFX Shot Review & Sorting Tool
+   All application logic in a single self-contained script.
+   =================================================================== */
+'use strict';
+
+/* ===== Constants ===== */
+const VIDEO_EXTENSIONS = new Set([
+  'mp4','m4v','mov','webm','avi','mkv','wmv','ogv','ogg','3gp','flv','mxf'
+]);
+const STATUSES = ['unsorted','yes','maybe','no','nuke'];
+
+/* ===== State ===== */
+const state = {
+  files: [],       // [{id, file, name, relativePath, sourceFolder, scene, group, version, shot, take, status, objectUrl, size}]
+  groups: {},      // groupName -> [fileId, ...]
+  groupOrder: [],  // sorted group names
+  sceneMap: {},    // sourceFolder -> scene number (1-indexed)
+  renameProject: 'project',
+  renameTemplate: '{project}_{scene}_{shot}_{take}',
+  filter: 'all',
+  search: '',
+  view: 'grid',
+  undoStack: [],   // [{fileId, prevStatus}] or [{batch: [{fileId, prevStatus}, ...]}]
+  nextId: 0,
+  sourceDirHandle: null,   // FileSystemDirectoryHandle for source folder
+  outputDirHandle: null,   // FileSystemDirectoryHandle for output folder
+  droppedFolderNames: [],  // Track names of dropped folders
+};
+let currentlyPlaying = null;
+
+/* ===== DOM Refs ===== */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+const dom = {
+  header:       $('#header'),
+  viewToggle:   $('#view-toggle'),
+  headerStats:  $('#header-stats'),
+  headerActions:$('#header-actions'),
+  toolbar:      $('#toolbar'),
+  main:         $('#main'),
+  dropZone:     $('#drop-zone'),
+  dropOverlay:  $('#drop-overlay'),
+  gridView:     $('#grid-view'),
+  swipeView:    $('#swipe-view'),
+  renameView:   $('#rename-view'),
+  renameContent:$('#rename-content'),
+  renameProjectInput: $('#rename-project'),
+  renameTemplateInput:$('#rename-template'),
+  renameBtn:    $('#btn-rename'),
+  renameCopyBtn:$('#btn-rename-copy'),
+  renameHint:   $('#rename-hint'),
+  renameProgress:$('#rename-progress'),
+  emptyState:   $('#empty-state'),
+  sortModal:    $('#sort-modal'),
+  searchInput:  $('#search-input'),
+  progressFill: $('#progress-fill'),
+};
+
+/* ===== Utility ===== */
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function isVideoFile(name) {
+  const dot = name.lastIndexOf('.');
+  if (dot === -1) return false;
+  return VIDEO_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
+/* ===== Grouping ===== */
+function extractGroup(filename) {
+  const dot = filename.lastIndexOf('.');
+  const stem = dot !== -1 ? filename.slice(0, dot) : filename;
+
+  // _v1, _v2 etc (case-insensitive)
+  let m = stem.match(/^(.+?)_v(\d+)$/i);
+  if (m) return { group: m[1], version: 'v' + m[2] };
+
+  // _take1, _take2 etc
+  m = stem.match(/^(.+?)_take(\d+)$/i);
+  if (m) return { group: m[1], version: 'take' + m[2] };
+
+  // (1), (2) etc — with optional space before
+  m = stem.match(/^(.+?)\s*\((\d+)\)$/);
+  if (m) return { group: m[1].trimEnd(), version: String(m[2]) };
+
+  // No version pattern
+  return { group: stem, version: null };
+}
+
+function getFolderFromPath(relativePath) {
+  const lastSlash = relativePath.lastIndexOf('/');
+  return lastSlash === -1 ? '(root)' : relativePath.slice(0, lastSlash);
+}
+
+function rebuildGroups() {
+  state.groups = {};
+  for (const f of state.files) {
+    const folder = getFolderFromPath(f.relativePath);
+    if (!state.groups[folder]) state.groups[folder] = [];
+    state.groups[folder].push(f.id);
+  }
+  state.groupOrder = Object.keys(state.groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+/**
+ * Flag probable duplicates: same file size + similar base name (same group).
+ * Call after files are added to state.files.
+ */
+function flagDuplicates() {
+  // Clear previous flags
+  for (const f of state.files) f.possibleDupe = false;
+
+  // Build a map keyed by (group + size) to find clusters
+  const clusters = {};
+  for (const f of state.files) {
+    const key = f.group + '|' + f.size;
+    if (!clusters[key]) clusters[key] = [];
+    clusters[key].push(f);
+  }
+
+  // Any cluster with 2+ files → flag copies (skip first as original)
+  for (const files of Object.values(clusters)) {
+    if (files.length >= 2) {
+      for (let i = 1; i < files.length; i++) {
+        files[i].possibleDupe = true;
+      }
+    }
+  }
+}
+
+/** Assign scene numbers based on unique source folders (sorted alphabetically). */
+function rebuildScenes() {
+  const folders = [...new Set(state.files.map((f) => f.sourceFolder || ''))].sort(
+    (a, b) => a.localeCompare(b, undefined, { numeric: true })
+  );
+  state.sceneMap = {};
+  folders.forEach((folder, i) => { state.sceneMap[folder] = i + 1; });
+  for (const f of state.files) {
+    f.scene = state.sceneMap[f.sourceFolder || ''] || 1;
+  }
+}
+
+/** Extract the numeric part from a version string (e.g. "v2" → 2, "take3" → 3, "5" → 5). */
+function parseTakeNumber(version) {
+  if (!version) return 1;
+  const m = version.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 1;
+}
+
+/** Assign shot and take numbers per scene using Smart Grouping results. */
+function rebuildShotsTakes() {
+  // Group files by scene
+  const byScene = new Map();
+  for (const f of state.files) {
+    if (!byScene.has(f.scene)) byScene.set(f.scene, []);
+    byScene.get(f.scene).push(f);
+  }
+
+  for (const files of byScene.values()) {
+    // Collect unique group names within this scene, sorted
+    const groups = [...new Set(files.map((f) => f.group))].sort(
+      (a, b) => a.localeCompare(b, undefined, { numeric: true })
+    );
+    const shotMap = {};
+    groups.forEach((g, i) => { shotMap[g] = i + 1; });
+
+    for (const f of files) {
+      f.shot = shotMap[f.group];
+      f.take = parseTakeNumber(f.version);
+    }
+  }
+}
+
+/* ===== File Ingestion ===== */
+
+/** Extract the immediate parent folder name from a relative path. */
+function getSourceFolder(relativePath, fallback) {
+  const parts = relativePath.split('/');
+  if (parts.length >= 2) return parts[parts.length - 2];
+  return fallback || '';
+}
+
+async function readEntry(entry, basePath) {
+  if (entry.isFile) {
+    return new Promise((resolve) => {
+      entry.file((file) => {
+        if (isVideoFile(file.name)) {
+          resolve([{ file, relativePath: basePath + file.name }]);
+        } else {
+          resolve([]);
+        }
+      }, () => resolve([]));
+    });
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const allEntries = [];
+    // readEntries may return partial results; loop until empty
+    let batch;
+    do {
+      batch = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+      allEntries.push(...batch);
+    } while (batch.length > 0);
+
+    const results = [];
+    for (const child of allEntries) {
+      const childFiles = await readEntry(child, basePath + entry.name + '/');
+      results.push(...childFiles);
+    }
+    return results;
+  }
+  return [];
+}
+
+async function ingestFiles(dataTransfer) {
+  const items = [...dataTransfer.items];
+  let newFiles = [];
+
+  // Prefer modern File System Access API (reliable deep folder traversal)
+  const useModernAPI = items.length > 0 && typeof items[0].getAsFileSystemHandle === 'function';
+
+  if (useModernAPI) {
+    // Collect all handles upfront before any await — DataTransferItems
+    // become invalid once the event handler yields.
+    const handlePromises = items.map(item => item.getAsFileSystemHandle().catch(() => null));
+    const handles = await Promise.all(handlePromises);
+
+    for (const handle of handles) {
+      if (!handle) continue;
+      try {
+        if (handle.kind === 'directory') {
+          if (!state.droppedFolderNames.includes(handle.name)) {
+            state.droppedFolderNames.push(handle.name);
+          }
+          const found = await readFilesFromHandle(handle, handle.name + '/');
+          newFiles.push(...found);
+        } else if (handle.kind === 'file') {
+          const file = await handle.getFile();
+          if (isVideoFile(file.name)) {
+            newFiles.push({ file, relativePath: file.name });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to process handle, skipping:', err);
+      }
+    }
+  } else {
+    // Fallback: legacy webkitGetAsEntry API
+    const entries = items
+      .map((item) => item.webkitGetAsEntry && item.webkitGetAsEntry())
+      .filter(Boolean);
+
+    if (entries.length === 0) return 0;
+
+    for (const entry of entries) {
+      if (entry.isDirectory && !state.droppedFolderNames.includes(entry.name)) {
+        state.droppedFolderNames.push(entry.name);
+      }
+    }
+
+    for (const entry of entries) {
+      const found = await readEntry(entry, '');
+      newFiles.push(...found);
+    }
+  }
+
+  // Deduplicate by relativePath
+  const existing = new Set(state.files.map((f) => f.relativePath));
+  newFiles = newFiles.filter((f) => !existing.has(f.relativePath));
+
+  for (const { file, relativePath } of newFiles) {
+    const { group, version } = extractGroup(file.name);
+    const objectUrl = URL.createObjectURL(file);
+    state.files.push({
+      id: state.nextId++,
+      file,
+      name: file.name,
+      relativePath,
+      sourceFolder: getSourceFolder(relativePath),
+      group,
+      version,
+      status: 'unsorted',
+      objectUrl,
+      size: file.size,
+    });
+  }
+
+  rebuildGroups();
+  flagDuplicates();
+  rebuildScenes();
+  rebuildShotsTakes();
+  return newFiles.length;
+}
+
+/* ===== File System Access API Functions ===== */
+
+/**
+ * Read video files recursively from a FileSystemDirectoryHandle
+ */
+async function readFilesFromHandle(dirHandle, basePath = '') {
+  const files = [];
+  try {
+    for await (const entry of dirHandle.values()) {
+      try {
+        if (entry.kind === 'file') {
+          if (!isVideoFile(entry.name)) continue;
+          const file = await entry.getFile();
+          files.push({ file, relativePath: basePath + file.name });
+        } else if (entry.kind === 'directory') {
+          const subFiles = await readFilesFromHandle(entry, basePath + entry.name + '/');
+          files.push(...subFiles);
+        }
+      } catch (err) {
+        console.warn(`Skipping entry in ${basePath}: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.warn(`Could not read directory ${basePath}: ${err.message}`);
+  }
+  return files;
+}
+
+/**
+ * Open folder picker and load video files
+ */
+async function selectSourceFolder() {
+  try {
+    const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+    state.sourceDirHandle = dirHandle;
+
+    // Read all video files from the selected folder
+    const foundFiles = await readFilesFromHandle(dirHandle);
+
+    if (foundFiles.length === 0) {
+      alert('No video files found in the selected folder.');
+      return 0;
+    }
+
+    // Deduplicate by relativePath
+    const existing = new Set(state.files.map((f) => f.relativePath));
+    const newFiles = foundFiles.filter((f) => !existing.has(f.relativePath));
+
+    for (const { file, relativePath } of newFiles) {
+      const { group, version } = extractGroup(file.name);
+      const objectUrl = URL.createObjectURL(file);
+      state.files.push({
+        id: state.nextId++,
+        file,
+        name: file.name,
+        relativePath,
+        sourceFolder: getSourceFolder(relativePath, dirHandle.name),
+        group,
+        version,
+        status: 'unsorted',
+        objectUrl,
+        size: file.size,
+      });
+    }
+
+    rebuildGroups();
+    flagDuplicates();
+    rebuildScenes();
+    rebuildShotsTakes();
+    return newFiles.length;
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Directory picker error:', err);
+      alert('Could not open folder picker. Make sure you are using a supported browser (Chrome, Edge).');
+    }
+    return 0;
+  }
+}
+
+/**
+ * Copy a file to a target directory
+ */
+async function copyFileToDirectory(file, targetDirHandle, filename) {
+  // Avoid overwriting: if filename exists, append _001, _002, etc.
+  let finalName = filename;
+  const dot = filename.lastIndexOf('.');
+  const stem = dot > 0 ? filename.slice(0, dot) : filename;
+  const ext = dot > 0 ? filename.slice(dot) : '';
+  let counter = 1;
+  while (true) {
+    try {
+      await targetDirHandle.getFileHandle(finalName, { create: false });
+      // File exists — try next suffix
+      finalName = `${stem}_${String(counter).padStart(3, '0')}${ext}`;
+      counter++;
+    } catch {
+      break; // File doesn't exist — safe to use this name
+    }
+  }
+  const newFileHandle = await targetDirHandle.getFileHandle(finalName, { create: true });
+  const writable = await newFileHandle.createWritable();
+  await writable.write(file);
+  await writable.close();
+}
+
+/**
+ * Sort files into YES/ and MAYBE/ subdirectories
+ */
+async function sortFiles() {
+  if (!state.outputDirHandle) {
+    alert('Please select an output folder first.');
+    return false;
+  }
+
+  const yesFiles = state.files.filter((f) => f.status === 'yes');
+  const maybeFiles = state.files.filter((f) => f.status === 'maybe');
+  const nukeFiles = state.files.filter((f) => f.status === 'nuke');
+  const totalFiles = yesFiles.length + maybeFiles.length + nukeFiles.length;
+
+  if (totalFiles === 0) {
+    alert('No files to sort. Mark some files as YES, MAYBE, or NUKE first.');
+    return false;
+  }
+
+  // Show progress UI
+  const progressDiv = $('#sort-progress');
+  const progressText = $('#sort-progress-text');
+  const progressCount = $('#sort-progress-count');
+  const progressFill = $('#sort-progress-fill');
+  const confirmBtn = $('#sort-confirm');
+
+  progressDiv.classList.remove('hidden');
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Sorting...';
+
+  try {
+    // Create output subdirectories
+    const yesDir = await state.outputDirHandle.getDirectoryHandle('YES', { create: true });
+    const maybeDir = await state.outputDirHandle.getDirectoryHandle('MAYBE', { create: true });
+    const deleteDir = nukeFiles.length > 0
+      ? await state.outputDirHandle.getDirectoryHandle('DELETE', { create: true })
+      : null;
+
+    let copied = 0;
+
+    // Copy YES files
+    for (const f of yesFiles) {
+      progressText.textContent = `Copying ${f.name}...`;
+      progressCount.textContent = `${copied + 1}/${totalFiles}`;
+      progressFill.style.width = ((copied / totalFiles) * 100) + '%';
+
+      await copyFileToDirectory(f.file, yesDir, f.name);
+      copied++;
+    }
+
+    // Copy MAYBE files
+    for (const f of maybeFiles) {
+      progressText.textContent = `Copying ${f.name}...`;
+      progressCount.textContent = `${copied + 1}/${totalFiles}`;
+      progressFill.style.width = ((copied / totalFiles) * 100) + '%';
+
+      await copyFileToDirectory(f.file, maybeDir, f.name);
+      copied++;
+    }
+
+    // Copy NUKE files to DELETE
+    for (const f of nukeFiles) {
+      progressText.textContent = `Copying ${f.name}...`;
+      progressCount.textContent = `${copied + 1}/${totalFiles}`;
+      progressFill.style.width = ((copied / totalFiles) * 100) + '%';
+
+      await copyFileToDirectory(f.file, deleteDir, f.name);
+      copied++;
+    }
+
+    progressText.textContent = 'Done!';
+    progressCount.textContent = `${totalFiles}/${totalFiles}`;
+    progressFill.style.width = '100%';
+
+    setTimeout(() => {
+      dom.sortModal.classList.add('hidden');
+      progressDiv.classList.add('hidden');
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Sort Files';
+      state.outputDirHandle = null;
+      alert(`Successfully sorted ${totalFiles} files!\n\nYES: ${yesFiles.length} files\nMAYBE: ${maybeFiles.length} files\nDELETE: ${nukeFiles.length} files`);
+    }, 500);
+
+    return true;
+  } catch (err) {
+    console.error('Sort error:', err);
+    progressText.textContent = 'Error occurred';
+    progressDiv.classList.add('hidden');
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Sort Files';
+    alert('Error sorting files: ' + err.message);
+    return false;
+  }
+}
+
+/**
+ * Rename files: copy each file with its new name to a user-selected output folder.
+ * Skips files whose name already matches the template.
+ */
+async function renameFiles() {
+  // Build rename plan (skip unchanged)
+  const plan = [];
+  for (const f of state.files) {
+    const newName = applyTemplate(f);
+    if (newName !== f.name) plan.push({ file: f, newName });
+  }
+
+  if (plan.length === 0) {
+    alert('Nothing to rename — all filenames already match the template.');
+    return;
+  }
+
+  // Pick output folder
+  let outDir;
+  try {
+    outDir = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      alert('Could not open folder picker: ' + err.message);
+    }
+    return;
+  }
+
+  // Show progress
+  const progressDiv = dom.renameProgress;
+  const progressText = $('#rename-progress-text');
+  const progressCount = $('#rename-progress-count');
+  const progressFill = $('#rename-progress-fill');
+  progressDiv.classList.remove('hidden');
+  dom.renameBtn.disabled = true;
+  dom.renameBtn.textContent = 'Renaming...';
+
+  let copied = 0;
+  let errors = 0;
+
+  try {
+    for (const { file: f, newName } of plan) {
+      progressText.textContent = `Copying ${newName}...`;
+      progressCount.textContent = `${copied + 1}/${plan.length}`;
+      progressFill.style.width = ((copied / plan.length) * 100) + '%';
+
+      try {
+        await copyFileToDirectory(f.file, outDir, newName);
+        copied++;
+      } catch (err) {
+        console.error(`Failed to copy ${f.name} → ${newName}:`, err);
+        errors++;
+      }
+    }
+
+    progressText.textContent = 'Done!';
+    progressCount.textContent = `${copied}/${plan.length}`;
+    progressFill.style.width = '100%';
+
+    setTimeout(() => {
+      progressDiv.classList.add('hidden');
+      dom.renameBtn.textContent = 'Rename Files';
+      renderRename(); // Re-enables button based on current state
+
+      let msg = `Successfully renamed ${copied} file${copied !== 1 ? 's' : ''} to:\n${outDir.name}/`;
+      if (errors > 0) msg += `\n\n${errors} file${errors !== 1 ? 's' : ''} failed — check the console for details.`;
+      alert(msg);
+    }, 500);
+  } catch (err) {
+    console.error('Rename error:', err);
+    progressDiv.classList.add('hidden');
+    dom.renameBtn.textContent = 'Rename Files';
+    renderRename();
+    alert('Error renaming files: ' + err.message);
+  }
+}
+
+/* ===== Triage Actions ===== */
+function setStatus(fileId, newStatus, recordUndo = true) {
+  const f = state.files.find((x) => x.id === fileId);
+  if (!f) return;
+  // Toggle: clicking the same status returns to unsorted
+  const effectiveStatus = (f.status === newStatus) ? 'unsorted' : newStatus;
+  if (f.status === effectiveStatus) return;
+  if (recordUndo) state.undoStack.push({ fileId: f.id, prevStatus: f.status });
+  f.status = effectiveStatus;
+}
+
+function setGroupStatus(groupName, newStatus) {
+  const ids = state.groups[groupName];
+  if (!ids) return;
+  const batch = [];
+  for (const id of ids) {
+    const f = state.files.find((x) => x.id === id);
+    if (f && f.status !== newStatus) {
+      batch.push({ fileId: f.id, prevStatus: f.status });
+      f.status = newStatus;
+    }
+  }
+  if (batch.length > 0) state.undoStack.push({ batch });
+}
+
+function undo() {
+  if (state.undoStack.length === 0) return;
+  const action = state.undoStack.pop();
+  const affectedIds = [];
+
+  if (action.batch) {
+    for (const { fileId, prevStatus } of action.batch) {
+      const f = state.files.find((x) => x.id === fileId);
+      if (f) {
+        f.status = prevStatus;
+        affectedIds.push(fileId);
+      }
+    }
+  } else {
+    const f = state.files.find((x) => x.id === action.fileId);
+    if (f) {
+      f.status = action.prevStatus;
+      affectedIds.push(action.fileId);
+    }
+  }
+
+  // Optimized update based on view
+  if (state.view === 'grid') {
+    affectedIds.forEach((id) => updateCardStatus(id));
+    updateStatsOnly();
+  } else {
+    // Swipe view needs full render to update current clip
+    updateStats();
+    renderSwipe();
+  }
+}
+
+/* ===== Counting & Stats ===== */
+function getCounts() {
+  const c = { total: state.files.length, yes: 0, maybe: 0, no: 0, nuke: 0, unsorted: 0 };
+  for (const f of state.files) c[f.status]++;
+  return c;
+}
+
+function updateStats() {
+  const c = getCounts();
+  $('#count-total').textContent = c.total;
+  $('#count-yes').textContent = c.yes;
+  $('#count-maybe').textContent = c.maybe;
+  $('#count-no').textContent = c.no;
+  $('#count-nuke').textContent = c.nuke;
+  $('#count-unsorted').textContent = c.unsorted;
+  const triaged = c.total > 0 ? ((c.total - c.unsorted) / c.total * 100) : 0;
+  dom.progressFill.style.width = triaged.toFixed(1) + '%';
+
+  // Filter counts
+  $('#fcount-all').textContent = c.total;
+  $('#fcount-unsorted').textContent = c.unsorted;
+  $('#fcount-yes').textContent = c.yes;
+  $('#fcount-maybe').textContent = c.maybe;
+  $('#fcount-no').textContent = c.no;
+  $('#fcount-nuke').textContent = c.nuke;
+}
+
+/* ===== Filtering ===== */
+function fileMatchesFilter(f) {
+  if (state.filter !== 'all' && f.status !== state.filter) return false;
+  if (state.search && !f.name.toLowerCase().includes(state.search.toLowerCase())) return false;
+  return true;
+}
+
+/* ===== Render: Grid View ===== */
+function renderGrid() {
+  dom.gridView.innerHTML = '';
+  let anyVisible = false;
+
+  for (const groupName of state.groupOrder) {
+    const fileIds = state.groups[groupName];
+    const files = fileIds.map((id) => state.files.find((x) => x.id === id)).filter(Boolean);
+    const visible = files.filter(fileMatchesFilter);
+    if (visible.length === 0) continue;
+    anyVisible = true;
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'group';
+
+    // Group header
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    const dupeCount = files.filter((f) => f.possibleDupe).length;
+    const dupeInfo = dupeCount > 0 ? ` <span class="card-dupe-badge">${dupeCount} possible dupe${dupeCount !== 1 ? 's' : ''}</span>` : '';
+    header.innerHTML = `
+      <span class="group-name">${esc(groupName)}/</span>
+      <span class="group-count">${files.length} file${files.length !== 1 ? 's' : ''}${dupeInfo}</span>
+      <div class="group-actions">
+        <button class="group-btn g-yes" data-group="${esc(groupName)}" data-status="yes">All Yes</button>
+        <button class="group-btn g-maybe" data-group="${esc(groupName)}" data-status="maybe">All Maybe</button>
+        <button class="group-btn g-no" data-group="${esc(groupName)}" data-status="no">All No</button>
+        <button class="group-btn g-nuke" data-group="${esc(groupName)}" data-status="nuke">All Nuke</button>
+      </div>`;
+    groupEl.appendChild(header);
+
+    // Cards grid
+    const grid = document.createElement('div');
+    grid.className = 'group-grid';
+    for (const f of visible) {
+      grid.appendChild(createCard(f));
+    }
+    groupEl.appendChild(grid);
+    dom.gridView.appendChild(groupEl);
+  }
+
+  dom.emptyState.classList.toggle('hidden', anyVisible || state.files.length === 0);
+}
+
+function createCard(f) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.id = f.id;
+  card.dataset.status = f.status;
+
+  const videoWrap = document.createElement('div');
+  videoWrap.className = 'card-video';
+  const video = document.createElement('video');
+  video.src = f.objectUrl;
+  video.preload = 'metadata';
+  video.controls = true;
+  video.onerror = () => {
+    videoWrap.innerHTML = '<div class="video-error">Cannot load video</div>';
+  };
+  videoWrap.appendChild(video);
+
+  const dupeBadge = f.possibleDupe ? '<span class="card-dupe-badge">DUPE?</span>' : '';
+
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  body.innerHTML = `
+    <div class="card-filename" title="${esc(f.name)}">${esc(f.name)}${dupeBadge}</div>
+    <div class="card-meta">
+      <span title="${esc(f.relativePath)}">${esc(f.relativePath)}</span>
+      <span>${formatSize(f.size)}</span>
+    </div>
+    <div class="card-actions">
+      <button class="triage-btn t-yes ${f.status === 'yes' ? 'active' : ''}" data-id="${f.id}" data-status="yes">Yes</button>
+      <button class="triage-btn t-maybe ${f.status === 'maybe' ? 'active' : ''}" data-id="${f.id}" data-status="maybe">Maybe</button>
+      <button class="triage-btn t-no ${f.status === 'no' ? 'active' : ''}" data-id="${f.id}" data-status="no">No</button>
+      <button class="triage-btn t-nuke ${f.status === 'nuke' ? 'active' : ''}" data-id="${f.id}" data-status="nuke">Nuke</button>
+    </div>`;
+
+  card.appendChild(videoWrap);
+  card.appendChild(body);
+  return card;
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML.replace(/"/g, '&quot;');
+}
+
+/* ===== Render: Swipe View ===== */
+function getUnsortedFiles() {
+  return state.files.filter((f) => f.status === 'unsorted');
+}
+
+let swipeIndex = 0;
+
+function renderSwipe() {
+  dom.swipeView.innerHTML = '';
+  const unsorted = getUnsortedFiles();
+
+  if (unsorted.length === 0) {
+    const total = state.files.length;
+    if (total === 0) return;
+    dom.swipeView.innerHTML = `
+      <div class="swipe-done">
+        <h2>All shots triaged!</h2>
+        <p>${getCounts().total} shots reviewed. Switch to Grid view to review, or click Sort Files to organize them.</p>
+      </div>`;
+    return;
+  }
+
+  if (swipeIndex >= unsorted.length) swipeIndex = 0;
+  const f = unsorted[swipeIndex];
+
+  dom.swipeView.innerHTML = `
+    <div class="swipe-counter">
+      <strong>${swipeIndex + 1}</strong> of <strong>${unsorted.length}</strong> unsorted
+    </div>
+    <div class="swipe-video-wrap">
+      <video controls autoplay loop id="swipe-video"></video>
+    </div>
+    <div class="swipe-info">
+      <span class="swipe-filename">${esc(f.name)}</span>
+      <span>${esc(f.relativePath)} &middot; ${formatSize(f.size)} &middot; Group: ${esc(f.group)} &middot; Scene: ${f.scene || '—'}${f.sourceFolder ? ' (' + esc(f.sourceFolder) + ')' : ''}</span>
+    </div>
+    <div class="swipe-actions">
+      <button class="swipe-btn s-nuke" data-id="${f.id}" data-status="nuke">Nuke  &uarr;</button>
+      <button class="swipe-btn s-no" data-id="${f.id}" data-status="no">No  &larr;</button>
+      <button class="swipe-btn s-maybe" data-id="${f.id}" data-status="maybe">Maybe  &darr;</button>
+      <button class="swipe-btn s-yes" data-id="${f.id}" data-status="yes">Yes  &rarr;</button>
+    </div>`;
+
+  // Set video src via DOM property — never inject blob URLs into innerHTML
+  const swipeVideo = document.getElementById('swipe-video');
+  if (swipeVideo) swipeVideo.src = f.objectUrl;
+
+  // Pause any grid video
+  if (currentlyPlaying) { currentlyPlaying.pause(); currentlyPlaying = null; }
+}
+
+/** Apply the naming template to a file, returning the new filename (with extension). */
+function applyTemplate(f) {
+  const pad = (n) => String(n).padStart(3, '0');
+  const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '';
+  const name = state.renameTemplate
+    .replace(/\{project\}/gi, state.renameProject)
+    .replace(/\{scene\}/gi, pad(f.scene))
+    .replace(/\{shot\}/gi, pad(f.shot))
+    .replace(/\{take\}/gi, pad(f.take));
+  return name + ext;
+}
+
+/* ===== Render: Rename View ===== */
+function renderRename() {
+  dom.renameContent.innerHTML = '';
+
+  if (state.files.length === 0) {
+    dom.renameContent.innerHTML = '<div class="rename-empty">No files loaded.</div>';
+    dom.renameBtn.disabled = true;
+    dom.renameCopyBtn.disabled = true;
+    dom.renameHint.textContent = '';
+    return;
+  }
+
+  dom.renameCopyBtn.disabled = false;
+
+  // Pause any playing video when switching to rename view
+  if (currentlyPlaying) { currentlyPlaying.pause(); currentlyPlaying = null; }
+
+  // Pre-compute new names and detect duplicates
+  const nameMap = new Map(); // newName -> count
+  const fileNames = [];      // [{file, newName}]
+  for (const f of state.files) {
+    const newName = applyTemplate(f);
+    fileNames.push({ file: f, newName });
+    nameMap.set(newName, (nameMap.get(newName) || 0) + 1);
+  }
+  const duplicates = new Set();
+  for (const [name, count] of nameMap) {
+    if (count > 1) duplicates.add(name);
+  }
+
+  // Count stats
+  let unchanged = 0, conflicts = 0;
+  for (const { file, newName } of fileNames) {
+    if (newName === file.name) unchanged++;
+    if (duplicates.has(newName)) conflicts++;
+  }
+  const renaming = state.files.length - unchanged;
+
+  // Update rename button state
+  if (conflicts > 0) {
+    dom.renameBtn.disabled = true;
+    dom.renameHint.textContent = 'Resolve duplicate names before renaming';
+    dom.renameHint.className = 'rename-action-hint warn';
+  } else if (renaming === 0) {
+    dom.renameBtn.disabled = true;
+    dom.renameHint.textContent = 'All filenames already match the template';
+    dom.renameHint.className = 'rename-action-hint';
+  } else {
+    dom.renameBtn.disabled = false;
+    dom.renameHint.textContent = `Will copy ${renaming} file${renaming !== 1 ? 's' : ''} with new names`;
+    dom.renameHint.className = 'rename-action-hint';
+  }
+
+  // Summary
+  const summary = document.createElement('div');
+  summary.className = 'rename-summary';
+  let summaryHtml = `<span><strong>${renaming}</strong> to rename</span>`;
+  if (unchanged > 0) summaryHtml += `<span>${unchanged} unchanged</span>`;
+  if (conflicts > 0) summaryHtml += `<span class="rename-warn">${conflicts} conflict${conflicts !== 1 ? 's' : ''} (duplicate names)</span>`;
+  summary.innerHTML = summaryHtml;
+  dom.renameContent.appendChild(summary);
+
+  // Build sorted file list grouped by sourceFolder
+  const folders = new Map();
+  for (const { file, newName } of fileNames) {
+    const key = file.sourceFolder || '(root)';
+    if (!folders.has(key)) folders.set(key, []);
+    folders.get(key).push({ file, newName });
+  }
+
+  const table = document.createElement('table');
+  table.className = 'rename-table';
+  table.innerHTML = `<thead><tr>
+    <th>Current Name</th>
+    <th>Scene</th>
+    <th>Shot</th>
+    <th>Take</th>
+    <th class="rename-arrow"></th>
+    <th>New Name</th>
+  </tr></thead>`;
+
+  const tbody = document.createElement('tbody');
+  const pad = (n) => String(n).padStart(3, '0');
+
+  for (const [folder, entries] of folders) {
+    for (const { file: f, newName } of entries) {
+      const sceneLabel = pad(f.scene) + (folder !== '(root)' ? ' (' + esc(folder) + ')' : '');
+      const isUnchanged = newName === f.name;
+      const isConflict = duplicates.has(newName);
+      const tr = document.createElement('tr');
+      if (isConflict) tr.className = 'rename-conflict';
+      else if (isUnchanged) tr.className = 'rename-unchanged';
+      tr.innerHTML = `
+        <td title="${esc(f.name)}">${esc(f.name)}</td>
+        <td title="${esc(folder)}">${sceneLabel}</td>
+        <td>${pad(f.shot)}</td>
+        <td>${pad(f.take)}</td>
+        <td class="rename-arrow">&rarr;</td>
+        <td class="rename-new" title="${esc(newName)}">${esc(newName)}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  table.appendChild(tbody);
+  dom.renameContent.appendChild(table);
+}
+
+/* ===== Render: All ===== */
+function renderAll() {
+  updateStats();
+  if (state.view === 'grid') {
+    renderGrid();
+  } else if (state.view === 'swipe') {
+    renderSwipe();
+  } else if (state.view === 'rename') {
+    renderRename();
+  }
+}
+
+/* ===== Optimized Single Card Update ===== */
+function updateCardStatus(fileId) {
+  const f = state.files.find((x) => x.id === fileId);
+  if (!f) return;
+
+  const card = dom.gridView.querySelector(`.card[data-id="${fileId}"]`);
+
+  // Check if card should be visible with current filter
+  const shouldBeVisible = fileMatchesFilter(f);
+
+  if (!card && shouldBeVisible) {
+    // Card needs to appear but isn't in DOM - need full re-render
+    renderGrid();
+    return;
+  }
+
+  if (card && !shouldBeVisible) {
+    // Card no longer matches filter - remove it
+    card.remove();
+    // Check if the group is now empty and remove group header if so
+    const groupEl = dom.gridView.querySelector(`.group-grid:empty`)?.parentElement;
+    if (groupEl) groupEl.remove();
+    // Update empty state visibility
+    const anyVisible = dom.gridView.querySelector('.card') !== null;
+    dom.emptyState.classList.toggle('hidden', anyVisible || state.files.length === 0);
+    return;
+  }
+
+  if (!card) return; // Card not in DOM and shouldn't be, skip
+
+  // Update card's status indicator (left border color)
+  card.dataset.status = f.status;
+
+  // Update button active states
+  const buttons = card.querySelectorAll('.triage-btn');
+  buttons.forEach((btn) => {
+    const isActive = btn.dataset.status === f.status;
+    btn.classList.toggle('active', isActive);
+  });
+}
+
+/* ===== Light Update (stats only, no DOM rebuild) ===== */
+function updateStatsOnly() {
+  updateStats();
+}
+
+function showApp() {
+  dom.dropZone.classList.add('hidden');
+  dom.viewToggle.classList.remove('hidden');
+  dom.headerStats.classList.remove('hidden');
+  dom.headerActions.classList.remove('hidden');
+
+  const isRename = state.view === 'rename';
+  dom.toolbar.classList.toggle('hidden', isRename);
+  dom.gridView.classList.toggle('hidden', state.view !== 'grid');
+  dom.swipeView.classList.toggle('hidden', state.view !== 'swipe');
+  dom.renameView.classList.toggle('hidden', state.view !== 'rename');
+}
+
+/* ===== Clear Session ===== */
+function clearAll() {
+  for (const f of state.files) URL.revokeObjectURL(f.objectUrl);
+  state.files = [];
+  state.groups = {};
+  state.groupOrder = [];
+  state.sceneMap = {};
+  state.undoStack = [];
+  state.nextId = 0;
+  state.filter = 'all';
+  state.search = '';
+  state.sourceDirHandle = null;
+  state.outputDirHandle = null;
+  state.droppedFolderNames = [];
+  swipeIndex = 0;
+  currentlyPlaying = null;
+
+  dom.dropZone.classList.remove('hidden');
+  dom.viewToggle.classList.add('hidden');
+  dom.headerStats.classList.add('hidden');
+  dom.headerActions.classList.add('hidden');
+  dom.toolbar.classList.add('hidden');
+  dom.gridView.classList.add('hidden');
+  dom.swipeView.classList.add('hidden');
+  dom.renameView.classList.add('hidden');
+  dom.emptyState.classList.add('hidden');
+  dom.gridView.innerHTML = '';
+  dom.swipeView.innerHTML = '';
+  dom.renameContent.innerHTML = '';
+  dom.searchInput.value = '';
+  state.renameProject = 'project';
+  state.renameTemplate = '{project}_{scene}_{shot}_{take}';
+  dom.renameProjectInput.value = state.renameProject;
+  dom.renameTemplateInput.value = state.renameTemplate;
+
+  // Reset filter buttons
+  $$('.filter-btn').forEach((b) => b.classList.toggle('active', b.dataset.filter === 'all'));
+  // Reset view toggle
+  $$('#view-toggle button').forEach((b) => b.classList.toggle('active', b.dataset.view === 'grid'));
+  state.view = 'grid';
+}
+
+/* ===== Event Handlers ===== */
+
+// --- Drag and drop ---
+let dragCounter = 0;
+
+function onDragEnter(e) {
+  e.preventDefault();
+  dragCounter++;
+  if (state.files.length > 0 && dragCounter === 1) {
+    dom.dropOverlay.classList.remove('hidden');
+  }
+  if (state.files.length === 0) {
+    dom.dropZone.classList.add('drag-over');
+  }
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}
+
+function onDragLeave(e) {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dom.dropOverlay.classList.add('hidden');
+    dom.dropZone.classList.remove('drag-over');
+  }
+}
+
+async function onDrop(e) {
+  e.preventDefault();
+  dragCounter = 0;
+  dom.dropOverlay.classList.add('hidden');
+  dom.dropZone.classList.remove('drag-over');
+
+  const count = await ingestFiles(e.dataTransfer);
+  if (count > 0 || state.files.length > 0) {
+    showApp();
+    renderAll();
+  }
+}
+
+document.addEventListener('dragenter', onDragEnter);
+document.addEventListener('dragover', onDragOver);
+document.addEventListener('dragleave', onDragLeave);
+document.addEventListener('drop', onDrop);
+
+// --- Only one video plays at a time ---
+document.addEventListener('play', (e) => {
+  if (e.target.tagName === 'VIDEO') {
+    if (currentlyPlaying && currentlyPlaying !== e.target) {
+      currentlyPlaying.pause();
+    }
+    currentlyPlaying = e.target;
+  }
+}, true);
+
+// --- Click delegation for triage buttons and group buttons ---
+document.addEventListener('click', (e) => {
+  const triageBtn = e.target.closest('.triage-btn');
+  if (triageBtn) {
+    const fileId = parseInt(triageBtn.dataset.id, 10);
+    const newStatus = triageBtn.dataset.status;
+    setStatus(fileId, newStatus);
+    // Optimized: only update the single card, not the entire grid
+    updateCardStatus(fileId);
+    updateStatsOnly();
+    return;
+  }
+
+  const groupBtn = e.target.closest('.group-btn');
+  if (groupBtn) {
+    const groupName = groupBtn.dataset.group;
+    const newStatus = groupBtn.dataset.status;
+    setGroupStatus(groupName, newStatus);
+    // Group updates affect multiple cards - update each one
+    const ids = state.groups[groupName] || [];
+    ids.forEach((id) => updateCardStatus(id));
+    updateStatsOnly();
+    return;
+  }
+
+  const swipeBtn = e.target.closest('.swipe-btn');
+  if (swipeBtn) {
+    const fileId = parseInt(swipeBtn.dataset.id, 10);
+    const newStatus = swipeBtn.dataset.status;
+    setStatus(fileId, newStatus);
+    // Swipe view needs re-render to show next unsorted clip
+    updateStats();
+    renderSwipe();
+    return;
+  }
+});
+
+// --- View toggle ---
+dom.viewToggle.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  state.view = btn.dataset.view;
+  $$('#view-toggle button').forEach((b) => b.classList.toggle('active', b === btn));
+  showApp();
+  renderAll();
+});
+
+// --- Filter bar ---
+$$('.filter-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.filter = btn.dataset.filter;
+    $$('.filter-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    renderAll();
+  });
+});
+
+// --- Search ---
+dom.searchInput.addEventListener('input', (e) => {
+  state.search = e.target.value;
+  renderAll();
+});
+
+// --- Rename settings ---
+dom.renameProjectInput.addEventListener('input', (e) => {
+  state.renameProject = e.target.value;
+  if (state.view === 'rename') renderRename();
+});
+dom.renameTemplateInput.addEventListener('input', (e) => {
+  state.renameTemplate = e.target.value;
+  if (state.view === 'rename') renderRename();
+});
+
+// --- Rename files ---
+dom.renameBtn.addEventListener('click', renameFiles);
+
+dom.renameCopyBtn.addEventListener('click', async () => {
+  const rows = ['AI File Working Name\tComplete File Name'];
+  for (const f of state.files) {
+    const newName = applyTemplate(f);
+    rows.push(f.name + '\t' + newName);
+  }
+  await navigator.clipboard.writeText(rows.join('\n'));
+  const btn = dom.renameCopyBtn;
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = 'Copy Table to Clipboard'; }, 1500);
+});
+
+// --- Undo ---
+$('#btn-undo').addEventListener('click', undo);
+
+// --- Select Source Folder ---
+$('#btn-select-source').addEventListener('click', async () => {
+  const count = await selectSourceFolder();
+  if (count > 0 || state.files.length > 0) {
+    showApp();
+    renderAll();
+  }
+});
+
+// --- Sort Files Modal ---
+$('#btn-sort').addEventListener('click', () => {
+  const counts = getCounts();
+  if (counts.yes === 0 && counts.maybe === 0 && counts.nuke === 0) {
+    alert('No files to sort. Mark some files as YES, MAYBE, or NUKE first.');
+    return;
+  }
+  // Reset progress UI
+  $('#sort-progress').classList.add('hidden');
+  $('#sort-confirm').disabled = false;
+  $('#sort-confirm').textContent = 'Sort Files';
+  const suggestedName = state.sourceDirHandle ? state.sourceDirHandle.name + '_sorted' : '';
+  $('#sort-output').value = state.outputDirHandle
+    ? state.outputDirHandle.name + '/ (selected)'
+    : suggestedName ? suggestedName + '/ (suggested — click Browse)' : '';
+  dom.sortModal.classList.remove('hidden');
+});
+
+$('#sort-cancel').addEventListener('click', () => {
+  state.outputDirHandle = null;
+  dom.sortModal.classList.add('hidden');
+});
+
+// Browse button for output folder
+$('#sort-browse').addEventListener('click', async () => {
+  try {
+    const pickerOpts = { mode: 'readwrite' };
+    if (state.sourceDirHandle) pickerOpts.startIn = state.sourceDirHandle;
+    const dirHandle = await window.showDirectoryPicker(pickerOpts);
+    state.outputDirHandle = dirHandle;
+    $('#sort-output').value = dirHandle.name + '/ (selected)';
+  } catch (err) {
+    // User cancelled or API not supported
+    if (err.name !== 'AbortError') {
+      console.error('Directory picker error:', err);
+      alert('Could not open folder picker. Make sure you are using a supported browser.');
+    }
+  }
+});
+
+$('#sort-confirm').addEventListener('click', async () => {
+  await sortFiles();
+});
+
+// Close modal on overlay click
+dom.sortModal.addEventListener('click', (e) => {
+  if (e.target.closest('.modal-box')) return;
+  state.outputDirHandle = null;
+  dom.sortModal.classList.add('hidden');
+});
+
+// --- Clear all ---
+$('#btn-clear').addEventListener('click', () => {
+  if (state.files.length === 0) return;
+  if (!confirm('Clear all shots and start over?')) return;
+  clearAll();
+});
+
+// --- Keyboard shortcuts ---
+document.addEventListener('keydown', (e) => {
+  // Ignore if typing in an input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  // Global: U = undo
+  if (e.key === 'u' || e.key === 'U') {
+    e.preventDefault();
+    undo();
+    return;
+  }
+
+  // Swipe view shortcuts
+  if (state.view === 'swipe' && state.files.length > 0) {
+    const unsorted = getUnsortedFiles();
+    if (unsorted.length === 0) return;
+    const f = unsorted[swipeIndex >= unsorted.length ? 0 : swipeIndex];
+    if (!f) return;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setStatus(f.id, 'no');
+      renderAll();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setStatus(f.id, 'yes');
+      renderAll();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setStatus(f.id, 'maybe');
+      renderAll();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setStatus(f.id, 'nuke');
+      renderAll();
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      const video = $('#swipe-video');
+      if (video) video.paused ? video.play() : video.pause();
+    }
+  }
+});
+
+</script>
+</body>
+</html>
