@@ -176,6 +176,12 @@
       background: var(--warn); color: #000; font-size: 9px; font-weight: 600;
       padding: 1px 5px; border-radius: 3px; z-index: 2;
     }
+    .thumb-card .triage-badge {
+      position: absolute; bottom: 4px; right: 4px;
+      width: 8px; height: 8px; border-radius: 50%; z-index: 2;
+    }
+    .thumb-card .triage-badge.triage-yes { background: #4caf50; }
+    .thumb-card .triage-badge.triage-maybe { background: #ff9800; }
 
     /* ===== Shot Boxes ===== */
     .shot-box {
@@ -366,7 +372,7 @@
       </div>
       <div class="toolbar-field">
         <span>Template</span>
-        <input type="text" id="input-template" value="{project}_{scene}_SH{shot}_{version}" spellcheck="false">
+        <input type="text" id="input-template" value="{project}_{scene:2:SC}_{shot:6}_{seq:3}_V" spellcheck="false">
       </div>
       <div class="toolbar-field">
         <span>Start</span>
@@ -388,12 +394,17 @@
       <button class="token-chip" data-token="{project}">{project}</button>
       <button class="token-chip" data-token="{scene}">{scene}</button>
       <button class="token-chip" data-token="{shot}">{shot}</button>
+      <button class="token-chip" data-token="{seq}">{seq}</button>
       <button class="token-chip" data-token="{version}">{version}</button>
+      <button class="token-chip" data-token="{flag}">{flag}</button>
       <button class="token-chip" data-token="{suffix}">{suffix}</button>
       <button class="token-chip" data-token="{prefix}">{prefix}</button>
       <button class="token-chip" data-token="{original}">{original}</button>
       <button class="token-chip" data-token="{date}">{date}</button>
       <button class="token-chip" data-token="{nn}">{nn}</button>
+    </div>
+    <div class="toolbar-row" style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);padding:0 12px;">
+      Format: {token:pad:prefix} &mdash; e.g. {scene:2:SC} &rarr; SC38 &nbsp;|&nbsp; {shot:6} &rarr; 000301 &nbsp;|&nbsp; {seq:3} &rarr; 001
     </div>
   </header>
 
@@ -504,7 +515,7 @@ const state = {
   panX: 0,
   panY: 0,
   zoom: 1,
-  template: '{project}_{scene}_SH{shot}_{version}',
+  template: '{project}_{scene:2:SC}_{shot:6}_{seq:3}_V',
   shotIncrement: 10,
   shotStartNumber: 10,
   thumbSize: 160,
@@ -649,10 +660,22 @@ async function ingestFiles(dataTransfer) {
   const newFileIds = [];
   for (const { file, relativePath } of newFiles) {
     const id = state.nextId++;
+    // Detect temp flag from filename (e.g. "002temp" in source name)
+    const tempMatch = file.name.match(/(\d+)(temp)/i);
+    const flag = tempMatch ? 'temp' : '';
+    // Detect triage tier from folder path
+    const pathLower = relativePath.toLowerCase();
+    let triage = 'unknown';
+    if (pathLower.includes('/yes/') || pathLower.includes('\\yes\\') || pathLower.startsWith('yes/')) {
+      triage = 'yes';
+    } else if (pathLower.includes('/maybe/') || pathLower.includes('\\maybe\\') || pathLower.startsWith('maybe/')) {
+      triage = 'maybe';
+    }
     state.files.push({
       id, file, name: file.name, relativePath,
       objectUrl: URL.createObjectURL(file),
       size: file.size, thumbnailUrl: null, possibleDupe: false,
+      flag, triage,
     });
     newFileIds.push(id);
   }
@@ -1142,6 +1165,12 @@ function renderCanvas() {
       badge.textContent = t.suffix;
       imgWrap.appendChild(badge);
     }
+    if (f.triage === 'yes' || f.triage === 'maybe') {
+      const badge = document.createElement('div');
+      badge.className = 'triage-badge triage-' + f.triage;
+      badge.title = f.triage.toUpperCase();
+      imgWrap.appendChild(badge);
+    }
 
     const label = document.createElement('div');
     label.className = 'thumb-label';
@@ -1203,7 +1232,32 @@ function updateStatusBar() {
 
 /* ===== Naming Template ===== */
 
-function applyTemplate(fileId) {
+function parseToken(tokenStr) {
+  const parts = tokenStr.split(':');
+  return {
+    name: parts[0].toLowerCase(),
+    pad: parts[1] ? parseInt(parts[1], 10) : 0,
+    prefix: parts[2] || '',
+    suffix: parts[3] || '',
+  };
+}
+
+function formatToken(value, pad, prefix, suffix) {
+  const padded = pad > 0 ? String(value).padStart(pad, '0') : String(value);
+  return prefix + padded + suffix;
+}
+
+const triagePriority = { yes: 0, unknown: 1, maybe: 2 };
+
+function triageSort(a, b) {
+  const fa = state.files.find(x => x.id === a.fileId);
+  const fb = state.files.find(x => x.id === b.fileId);
+  const tp = (triagePriority[fa?.triage] ?? 1) - (triagePriority[fb?.triage] ?? 1);
+  if (tp !== 0) return tp;
+  return a.x - b.x || a.y - b.y;
+}
+
+function applyTemplate(fileId, seqOffset = 0) {
   const f = state.files.find(x => x.id === fileId);
   const t = state.thumbnails.find(x => x.fileId === fileId);
   if (!f) return '';
@@ -1211,13 +1265,13 @@ function applyTemplate(fileId) {
   const shot = state.shots.find(s => s.fileIds.includes(fileId));
   const scene = shot ? state.scenes.find(sc => sc.shotIds.includes(shot.id)) : null;
 
-  // Version: left-to-right within shot
+  // Version: triage-priority then left-to-right within shot
   let version = 1;
   if (shot) {
     const thumbsInShot = shot.fileIds
       .map(fid => state.thumbnails.find(x => x.fileId === fid))
       .filter(Boolean)
-      .sort((a, b) => a.x - b.x || a.y - b.y);
+      .sort(triageSort);
     version = thumbsInShot.findIndex(x => x.fileId === fileId) + 1;
   }
 
@@ -1230,7 +1284,7 @@ function applyTemplate(fileId) {
         const sorted = s.fileIds
           .map(fid => state.thumbnails.find(x => x.fileId === fid))
           .filter(Boolean)
-          .sort((a, b) => a.x - b.x || a.y - b.y)
+          .sort(triageSort)
           .map(x => x.fileId);
         allGroupedFileIds.push(...sorted);
       }
@@ -1242,7 +1296,7 @@ function applyTemplate(fileId) {
       const sorted = s.fileIds
         .map(fid => state.thumbnails.find(x => x.fileId === fid))
         .filter(Boolean)
-        .sort((a, b) => a.x - b.x || a.y - b.y)
+        .sort(triageSort)
         .map(x => x.fileId);
       allGroupedFileIds.push(...sorted);
     }
@@ -1251,26 +1305,36 @@ function applyTemplate(fileId) {
 
   const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '';
   const original = f.name.includes('.') ? f.name.slice(0, f.name.lastIndexOf('.')) : f.name;
-  const suffix = t ? t.suffix : '';
-  const prefix = t ? t.prefix : '';
 
-  const result = state.template
-    .replace(/\{project\}/gi, state.projectName)
-    .replace(/\{scene\}/gi, scene ? scene.name : 'UNSCENED')
-    .replace(/\{shot\}/gi, shot ? String(shot.number).padStart(3, '0') : '000')
-    .replace(/\{version\}/gi, 'v' + String(version).padStart(2, '0'))
-    .replace(/\{suffix\}/gi, suffix)
-    .replace(/\{prefix\}/gi, prefix)
-    .replace(/\{original\}/gi, original)
-    .replace(/\{date\}/gi, today())
-    .replace(/\{nn\}/gi, String(seqNum).padStart(3, '0'));
+  const tokenValues = {
+    project:  { value: state.projectName, isString: true },
+    scene:    { value: scene ? scene.name : 'UNSCENED', isString: true },
+    shot:     { value: shot ? shot.number : 0 },
+    seq:      { value: version + seqOffset },
+    version:  { value: version },
+    nn:       { value: seqNum },
+    suffix:   { value: t ? t.suffix : '', isString: true },
+    prefix:   { value: t ? t.prefix : '', isString: true },
+    flag:     { value: f.flag || '', isString: true },
+    original: { value: original, isString: true },
+    date:     { value: today(), isString: true },
+    ext:      { value: ext.replace('.', ''), isString: true },
+  };
+
+  const result = state.template.replace(/\{([^}]+)\}/g, (match, tokenStr) => {
+    const { name, pad, prefix, suffix } = parseToken(tokenStr);
+    const tokenDef = tokenValues[name];
+    if (!tokenDef) return match;
+    if (tokenDef.isString) return prefix + String(tokenDef.value) + suffix;
+    return formatToken(tokenDef.value, pad, prefix, suffix);
+  });
 
   return result + ext;
 }
 
 /* ===== Rename Preview ===== */
 
-function generatePreview() {
+function generatePreview(existingSeqs = null) {
   const preview = [];
   // Grouped files (in scenes)
   for (const scene of state.scenes) {
@@ -1280,12 +1344,13 @@ function generatePreview() {
       const sorted = shot.fileIds
         .map(fid => state.thumbnails.find(t => t.fileId === fid))
         .filter(Boolean)
-        .sort((a, b) => a.x - b.x || a.y - b.y);
+        .sort(triageSort);
       for (const t of sorted) {
         const f = state.files.find(x => x.id === t.fileId);
         if (!f) continue;
+        const offset = existingSeqs ? (existingSeqs.get(buildShotPrefix(t.fileId)) || 0) : 0;
         preview.push({
-          fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId),
+          fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId, offset),
           scene: scene.name, shot: shot.number, grouped: true,
         });
       }
@@ -1297,12 +1362,13 @@ function generatePreview() {
     const sorted = shot.fileIds
       .map(fid => state.thumbnails.find(t => t.fileId === fid))
       .filter(Boolean)
-      .sort((a, b) => a.x - b.x || a.y - b.y);
+      .sort(triageSort);
     for (const t of sorted) {
       const f = state.files.find(x => x.id === t.fileId);
       if (!f) continue;
+      const offset = existingSeqs ? (existingSeqs.get(buildShotPrefix(t.fileId)) || 0) : 0;
       preview.push({
-        fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId),
+        fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId, offset),
         scene: '(no scene)', shot: shot.number, grouped: true,
       });
     }
@@ -1320,8 +1386,8 @@ function generatePreview() {
   return preview;
 }
 
-function showRenamePreview() {
-  const preview = generatePreview();
+function showRenamePreview(existingSeqs = null) {
+  const preview = generatePreview(existingSeqs);
   const grouped = preview.filter(p => p.grouped);
   const ungrouped = preview.filter(p => !p.grouped);
 
@@ -1330,6 +1396,20 @@ function showRenamePreview() {
   for (const p of grouped) nameCount[p.newName] = (nameCount[p.newName] || 0) + 1;
   const collisions = new Set(Object.keys(nameCount).filter(k => nameCount[k] > 1));
   const hasCollisions = collisions.size > 0;
+
+  // Build offset info if output folder was scanned
+  let offsetInfo = '';
+  if (existingSeqs && existingSeqs.size > 0) {
+    const offsetLines = [];
+    for (const [prefix, maxSeq] of existingSeqs) {
+      offsetLines.push(`${esc(prefix)}: ${maxSeq} existing &rarr; new start at ${String(maxSeq + 1).padStart(3, '0')}`);
+    }
+    offsetInfo = `
+    <div class="rename-summary" style="background:var(--accent-dim);border-radius:4px;padding:6px 10px;margin-top:4px;">
+      <span style="color:var(--warn);">Output folder has existing files. Numbering continues from highest sequence.</span>
+      <br><span style="font-family:var(--font-mono);font-size:11px;">${offsetLines.join('<br>')}</span>
+    </div>`;
+  }
 
   // Info summary
   dom.renameInfo.innerHTML = `
@@ -1344,7 +1424,8 @@ function showRenamePreview() {
       <span>${state.shots.length} shot${state.shots.length !== 1 ? 's' : ''}</span>
       ${ungrouped.length ? `<span class="rename-warn">${ungrouped.length} ungrouped (excluded)</span>` : ''}
       ${hasCollisions ? `<span class="rename-warn">${collisions.size} collision${collisions.size !== 1 ? 's' : ''}</span>` : ''}
-    </div>`;
+    </div>
+    ${offsetInfo}`;
 
   // Table
   let html = '<table class="rename-table"><thead><tr>';
@@ -1381,6 +1462,51 @@ function showRenamePreview() {
   dom.renameModal.classList.remove('hidden');
 }
 
+/* ===== Output Folder Scan ===== */
+
+async function scanOutputFolder(dirHandle) {
+  const maxSeq = new Map();
+  const seqPattern = /^(.+?)_(\d{3,})_V\b/i;
+
+  // Scan scene subdirectories
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind !== 'directory') continue;
+    for await (const [fileName] of handle.entries()) {
+      const match = fileName.match(seqPattern);
+      if (match) {
+        const prefix = match[1];
+        const seq = parseInt(match[2], 10);
+        const current = maxSeq.get(prefix) || 0;
+        if (seq > current) maxSeq.set(prefix, seq);
+      }
+    }
+  }
+
+  // Scan root level
+  for await (const [fileName, handle] of dirHandle.entries()) {
+    if (handle.kind !== 'file') continue;
+    const match = fileName.match(seqPattern);
+    if (match) {
+      const prefix = match[1];
+      const seq = parseInt(match[2], 10);
+      const current = maxSeq.get(prefix) || 0;
+      if (seq > current) maxSeq.set(prefix, seq);
+    }
+  }
+
+  return maxSeq;
+}
+
+function buildShotPrefix(fileId) {
+  const fullName = applyTemplate(fileId, 0);
+  // Remove extension
+  const dot = fullName.lastIndexOf('.');
+  const stem = dot > 0 ? fullName.slice(0, dot) : fullName;
+  // Extract prefix before the sequence portion (everything before _NNN_V)
+  const match = stem.match(/^(.+?)_\d{3,}_V/i);
+  return match ? match[1] : stem;
+}
+
 /* ===== Export ===== */
 
 async function copyFileToDirectory(file, targetDirHandle, filename) {
@@ -1392,6 +1518,7 @@ async function copyFileToDirectory(file, targetDirHandle, filename) {
   while (true) {
     try {
       await targetDirHandle.getFileHandle(finalName, { create: false });
+      console.warn(`Collision: "${finalName}" already exists — appending suffix`);
       finalName = `${stem}_${String(counter).padStart(3, '0')}${ext}`;
       counter++;
     } catch { break; }
@@ -1403,9 +1530,6 @@ async function copyFileToDirectory(file, targetDirHandle, filename) {
 }
 
 async function exportFiles() {
-  const preview = generatePreview().filter(p => p.grouped);
-  if (preview.length === 0) { alert('No grouped files to export. Assign files to shots first.'); return; }
-
   let outDir;
   try {
     outDir = await window.showDirectoryPicker({ mode: 'readwrite' });
@@ -1413,6 +1537,12 @@ async function exportFiles() {
     if (err.name !== 'AbortError') alert('Could not open folder picker: ' + err.message);
     return;
   }
+
+  // Scan output folder for existing sequences
+  const existingSeqs = await scanOutputFolder(outDir);
+
+  const preview = generatePreview(existingSeqs).filter(p => p.grouped);
+  if (preview.length === 0) { alert('No grouped files to export. Assign files to shots first.'); return; }
 
   const progressDiv = $('#rename-progress');
   const progressText = $('#rename-progress-text');
@@ -1625,7 +1755,7 @@ function saveSession() {
     shotIncrement: state.shotIncrement,
     thumbSize: state.thumbSize,
     panX: state.panX, panY: state.panY, zoom: state.zoom,
-    files: state.files.map(f => ({ id: f.id, name: f.name, relativePath: f.relativePath, size: f.size })),
+    files: state.files.map(f => ({ id: f.id, name: f.name, relativePath: f.relativePath, size: f.size, flag: f.flag || '', triage: f.triage || 'unknown' })),
     thumbnails: state.thumbnails,
     shots: state.shots,
     scenes: state.scenes,
@@ -1652,7 +1782,7 @@ async function loadSession() {
   const data = JSON.parse(text);
 
   state.projectName = data.projectName || 'PROJECT';
-  state.template = data.template || '{project}_{scene}_SH{shot}_{version}';
+  state.template = data.template || '{project}_{scene:2:SC}_{shot:6}_{seq:3}_V';
   state.shotStartNumber = data.shotStartNumber || 10;
   state.shotIncrement = data.shotIncrement || 10;
   state.thumbSize = data.thumbSize || 160;
@@ -1670,6 +1800,7 @@ async function loadSession() {
   // Mark files as missing (to be re-linked on import)
   state.files = (data.files || []).map(f => ({
     ...f, file: null, objectUrl: null, thumbnailUrl: null, possibleDupe: false,
+    flag: f.flag || '', triage: f.triage || 'unknown',
   }));
   state.nextId = data.nextId || state.files.length;
 
