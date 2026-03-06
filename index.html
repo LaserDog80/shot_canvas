@@ -182,6 +182,15 @@
     }
     .thumb-card .triage-badge.triage-yes { background: #4caf50; }
     .thumb-card .triage-badge.triage-maybe { background: #ff9800; }
+    .thumb-card .type-badge {
+      position: absolute; top: 4px; left: 4px;
+      background: var(--bg-elevated); color: var(--text-secondary);
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      padding: 1px 4px; border-radius: 3px; z-index: 2;
+      letter-spacing: 0.3px; border: 1px solid var(--border);
+    }
+    .thumb-card .type-badge.type-video { color: var(--accent); border-color: var(--accent); }
+    .thumb-card .type-badge.type-image { color: var(--success); border-color: var(--success); }
 
     /* ===== Shot Boxes ===== */
     .shot-box {
@@ -358,8 +367,10 @@
         <button class="btn" id="btn-import">Import Folder</button>
         <button class="btn" id="btn-save">Save Session</button>
         <button class="btn" id="btn-load">Load Session</button>
+        <button class="btn" id="btn-settings">Settings</button>
       </div>
       <div class="toolbar-right">
+        <button class="btn" id="btn-autogroup">Auto-Group</button>
         <button class="btn" id="btn-dupes">Detect Dupes</button>
         <button class="btn" id="btn-preview">Preview Rename</button>
         <button class="btn btn-accent" id="btn-export">Export</button>
@@ -402,6 +413,7 @@
       <button class="token-chip" data-token="{original}">{original}</button>
       <button class="token-chip" data-token="{date}">{date}</button>
       <button class="token-chip" data-token="{nn}">{nn}</button>
+      <button class="token-chip" data-token="{type}">{type}</button>
     </div>
     <div class="toolbar-row" style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);padding:0 12px;">
       Format: {token:pad:prefix} &mdash; e.g. {scene:2:SC} &rarr; SC38 &nbsp;|&nbsp; {shot:6} &rarr; 000301 &nbsp;|&nbsp; {seq:3} &rarr; 001
@@ -412,8 +424,8 @@
   <div id="drop-zone">
     <div class="drop-content">
       <div class="drop-icon">&darr;</div>
-      <h2>Drop video folders here</h2>
-      <p>Drag one or more folders containing MP4, MOV, WebM, or other video files.</p>
+      <h2>Drop media folders here</h2>
+      <p>Drag one or more folders containing video (MP4, MOV, etc.) or image (JPG, PNG, etc.) files.</p>
       <p style="margin-top: 16px; color: var(--text-muted);">— or —</p>
       <button class="btn btn-accent" id="btn-select-source" style="margin-top: 12px; padding: 10px 24px; font-size: 14px;">
         Select Source Folder
@@ -457,12 +469,75 @@
     </div>
   </div>
 
+  <!-- ===== Auto-Group Preview Modal ===== -->
+  <div id="autogroup-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h2>Auto-Group Preview</h2>
+        <button class="modal-close" id="autogroup-close">&times;</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div class="toolbar-field" style="gap:12px;flex-wrap:wrap;">
+          <label style="font-size:12px;color:var(--text-secondary);">Method:
+            <select id="autogroup-method" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text-primary);font-size:12px;">
+              <option value="combined">Combined (name + time)</option>
+              <option value="filename">Filename prefix only</option>
+              <option value="timestamp">Timestamp only</option>
+            </select>
+          </label>
+          <label style="font-size:12px;color:var(--text-secondary);">Time gap (min):
+            <input type="number" id="autogroup-gap" value="30" min="1" max="1440" style="width:60px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text-primary);font-size:12px;">
+          </label>
+          <label style="font-size:12px;color:var(--text-secondary);">Min cluster size:
+            <input type="number" id="autogroup-min" value="2" min="2" max="100" style="width:60px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text-primary);font-size:12px;">
+          </label>
+          <button class="btn" id="autogroup-recompute">Recompute</button>
+        </div>
+      </div>
+      <div class="modal-body" id="autogroup-body"></div>
+      <div class="modal-actions">
+        <button class="btn" id="autogroup-cancel">Cancel</button>
+        <button class="btn btn-accent" id="autogroup-apply">Apply Groups</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Settings Modal ===== -->
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button class="modal-close" id="settings-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Naming Preset</label>
+          <select id="settings-preset" style="width:100%;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:8px;color:var(--text-primary);font-size:13px;"></select>
+          <div id="settings-preset-desc" style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:var(--font-mono);"></div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Default Template</label>
+          <input type="text" id="settings-template" style="width:100%;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:8px;color:var(--text-primary);font-family:var(--font-mono);font-size:13px;" spellcheck="false">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">Default Project Name</label>
+          <input type="text" id="settings-project" style="width:100%;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:8px;color:var(--text-primary);font-size:13px;" spellcheck="false">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="settings-cancel">Cancel</button>
+        <button class="btn btn-accent" id="settings-save">Save Defaults</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Context Menu ===== -->
   <div id="context-menu" class="hidden"></div>
 
   <!-- ===== Video Playback Overlay ===== -->
   <div id="video-overlay" class="hidden">
     <video id="video-player" controls></video>
+    <img id="image-preview" class="hidden" style="max-width:90vw;max-height:85vh;border-radius:var(--radius-lg);">
   </div>
 
   <!-- ===== Status Bar ===== -->
@@ -492,6 +567,17 @@
 const VIDEO_EXTENSIONS = new Set([
   'mp4','m4v','mov','webm','avi','mkv','wmv','ogv','ogg','3gp','flv','mxf'
 ]);
+const IMAGE_EXTENSIONS = new Set([
+  'jpg','jpeg','png','webp','gif','tiff','tif','bmp','heic','heif',
+  'raw','cr2','cr3','nef','arw','dng','orf','rw2','pef','raf','srw'
+]);
+const NAMING_PRESETS = [
+  { id: 'video-production', name: 'Video Production', template: '{project}_{scene:2:SC}_{shot:6}_{seq:3}_V', description: 'SPT25_SC38_000301_001_V.mp4' },
+  { id: 'photography', name: 'Photography', template: '{project}_{date}_{nn:4}', description: 'WEDDING_20240615_0001.jpg' },
+  { id: 'generic', name: 'Generic Organisation', template: '{scene}_{shot:3}_{seq:3}', description: 'LANDSCAPES_010_001.png' },
+  { id: 'sequential', name: 'Simple Sequential', template: '{project}_{nn:4}', description: 'MYPROJECT_0001.mp4' },
+  { id: 'scene-shot', name: 'Scene + Shot', template: '{scene}_{shot:4}_{original}', description: 'INTRO_0010_originalname.mp4' },
+];
 const THUMB_LABEL_H = 20;
 const THUMB_GAP = 24;
 const SHOT_PAD = 12;
@@ -525,6 +611,19 @@ const state = {
   outputDirHandle: null,
   undoStack: [],
   droppedFolderNames: [],
+  autoGroupSettings: {
+    method: 'combined',     // 'filename' | 'timestamp' | 'combined'
+    timeGapMinutes: 30,
+    minClusterSize: 2,
+  },
+  settings: {
+    defaultTemplate: '{project}_{scene:2:SC}_{shot:6}_{seq:3}_V',
+    defaultProjectName: 'PROJECT',
+    activePreset: 'video-production',
+  },
+  exportMode: 'rename-and-sort',   // 'rename-only' | 'sort-only' | 'rename-and-sort'
+  folderStructure: 'scene',        // 'scene' | 'scene-shot' | 'file-type' | 'custom'
+  folderTemplate: '{scene}',
 };
 
 /* ===== DOM Refs ===== */
@@ -546,6 +645,7 @@ const dom = {
   renameExportBtn: $('#rename-export'),
   videoOverlay:$('#video-overlay'),
   videoPlayer: $('#video-player'),
+  imagePreview:$('#image-preview'),
 };
 
 /* ===== Utilities ===== */
@@ -568,6 +668,22 @@ function isVideoFile(name) {
   return VIDEO_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
 }
 
+function isImageFile(name) {
+  const dot = name.lastIndexOf('.');
+  if (dot === -1) return false;
+  return IMAGE_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
+function isMediaFile(name) {
+  return isVideoFile(name) || isImageFile(name);
+}
+
+function getMediaType(name) {
+  if (isVideoFile(name)) return 'video';
+  if (isImageFile(name)) return 'image';
+  return null;
+}
+
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
 
 function today() {
@@ -581,7 +697,7 @@ async function readEntry(entry, basePath) {
   if (entry.isFile) {
     return new Promise((resolve) => {
       entry.file((file) => {
-        if (isVideoFile(file.name)) resolve([{ file, relativePath: basePath + file.name }]);
+        if (isMediaFile(file.name)) resolve([{ file, relativePath: basePath + file.name }]);
         else resolve([]);
       }, () => resolve([]));
     });
@@ -609,7 +725,7 @@ async function readFilesFromHandle(dirHandle, basePath = '') {
     for await (const entry of dirHandle.values()) {
       try {
         if (entry.kind === 'file') {
-          if (!isVideoFile(entry.name)) continue;
+          if (!isMediaFile(entry.name)) continue;
           const file = await entry.getFile();
           files.push({ file, relativePath: basePath + file.name });
         } else if (entry.kind === 'directory') {
@@ -641,7 +757,7 @@ async function ingestFiles(dataTransfer) {
           newFiles.push(...await readFilesFromHandle(handle, handle.name + '/'));
         } else if (handle.kind === 'file') {
           const file = await handle.getFile();
-          if (isVideoFile(file.name)) newFiles.push({ file, relativePath: file.name });
+          if (isMediaFile(file.name)) newFiles.push({ file, relativePath: file.name });
         }
       } catch (err) { console.warn('Failed to process handle:', err); }
     }
@@ -676,6 +792,8 @@ async function ingestFiles(dataTransfer) {
       objectUrl: URL.createObjectURL(file),
       size: file.size, thumbnailUrl: null, possibleDupe: false,
       flag, triage,
+      mediaType: getMediaType(file.name),
+      lastModified: file.lastModified || 0,
     });
     newFileIds.push(id);
   }
@@ -687,16 +805,25 @@ async function selectSourceFolder() {
   try {
     const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
     const foundFiles = await readFilesFromHandle(dirHandle, dirHandle.name + '/');
-    if (foundFiles.length === 0) { alert('No video files found in the selected folder.'); return []; }
+    if (foundFiles.length === 0) { alert('No media files found in the selected folder.'); return []; }
     const existing = new Set(state.files.map(f => f.relativePath));
     const newFiles = foundFiles.filter(f => !existing.has(f.relativePath));
     const newFileIds = [];
     for (const { file, relativePath } of newFiles) {
       const id = state.nextId++;
+      const pathLower = relativePath.toLowerCase();
+      let triage = 'unknown';
+      if (pathLower.includes('/yes/') || pathLower.includes('\\yes\\') || pathLower.startsWith('yes/')) triage = 'yes';
+      else if (pathLower.includes('/maybe/') || pathLower.includes('\\maybe\\') || pathLower.startsWith('maybe/')) triage = 'maybe';
+      const tempMatch = file.name.match(/(\d+)(temp)/i);
+      const flag = tempMatch ? 'temp' : '';
       state.files.push({
         id, file, name: file.name, relativePath,
         objectUrl: URL.createObjectURL(file),
         size: file.size, thumbnailUrl: null, possibleDupe: false,
+        flag, triage,
+        mediaType: getMediaType(file.name),
+        lastModified: file.lastModified || 0,
       });
       newFileIds.push(id);
     }
@@ -736,6 +863,24 @@ async function extractThumbnail(objectUrl) {
   });
 }
 
+async function extractImageThumbnail(objectUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        const s = Math.min(320 / img.width, 1);
+        c.width = img.width * s;
+        c.height = img.height * s;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(blob => { resolve(blob ? URL.createObjectURL(blob) : null); }, 'image/jpeg', 0.7);
+      } catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = objectUrl;
+  });
+}
+
 async function extractAllThumbnails(fileIds) {
   const concurrency = 4;
   const queue = [...fileIds];
@@ -744,7 +889,11 @@ async function extractAllThumbnails(fileIds) {
       const fid = queue.shift();
       const f = state.files.find(x => x.id === fid);
       if (!f || f.thumbnailUrl) continue;
-      f.thumbnailUrl = await extractThumbnail(f.objectUrl);
+      if (f.mediaType === 'image') {
+        f.thumbnailUrl = await extractImageThumbnail(f.objectUrl);
+      } else {
+        f.thumbnailUrl = await extractThumbnail(f.objectUrl);
+      }
       updateThumbElement(fid);
     }
   }
@@ -993,6 +1142,118 @@ function flagDuplicates() {
   updateStatusBar();
 }
 
+/* ===== Auto-Grouping ===== */
+
+function extractFilenamePrefix(name) {
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  // Common camera patterns: IMG_2024, DSC_001, VID_20240101, DJI_0001, GOPR0001
+  const match = stem.match(/^([A-Za-z_]+?)[\-_]?(\d+)/);
+  if (match) return match[1].replace(/[_-]$/, '').toUpperCase();
+  const fallback = stem.match(/^([A-Za-z]+)/);
+  return fallback ? fallback[1].toUpperCase() : 'MISC';
+}
+
+function clusterByFilename(fileIds) {
+  const clusters = {};
+  for (const fid of fileIds) {
+    const f = state.files.find(x => x.id === fid);
+    if (!f) continue;
+    const prefix = extractFilenamePrefix(f.name);
+    if (!clusters[prefix]) clusters[prefix] = [];
+    clusters[prefix].push(fid);
+  }
+  return clusters;
+}
+
+function clusterByTimestamp(fileIds, gapMinutes) {
+  const gapMs = gapMinutes * 60 * 1000;
+  const sorted = fileIds
+    .map(fid => { const f = state.files.find(x => x.id === fid); return f ? { fid, ts: f.lastModified || 0 } : null; })
+    .filter(Boolean)
+    .sort((a, b) => a.ts - b.ts);
+  if (sorted.length === 0) return {};
+  const clusters = {};
+  let clusterIdx = 0;
+  let prevTs = sorted[0].ts;
+  for (const item of sorted) {
+    if (item.ts - prevTs > gapMs) clusterIdx++;
+    const key = 'T' + clusterIdx;
+    if (!clusters[key]) clusters[key] = [];
+    clusters[key].push(item.fid);
+    prevTs = item.ts;
+  }
+  return clusters;
+}
+
+function clusterCombined(fileIds, gapMinutes) {
+  const nameClusters = clusterByFilename(fileIds);
+  const finalClusters = {};
+  for (const [prefix, fids] of Object.entries(nameClusters)) {
+    const timeClusters = clusterByTimestamp(fids, gapMinutes);
+    for (const [tKey, tFids] of Object.entries(timeClusters)) {
+      finalClusters[`${prefix}_${tKey}`] = tFids;
+    }
+  }
+  return finalClusters;
+}
+
+function computeAutoGroups() {
+  const settings = state.autoGroupSettings;
+  const ungroupedIds = state.thumbnails
+    .filter(t => !state.shots.some(s => s.fileIds.includes(t.fileId)))
+    .map(t => t.fileId);
+  if (ungroupedIds.length === 0) return {};
+  let clusters;
+  switch (settings.method) {
+    case 'filename':  clusters = clusterByFilename(ungroupedIds); break;
+    case 'timestamp': clusters = clusterByTimestamp(ungroupedIds, settings.timeGapMinutes); break;
+    case 'combined':
+    default:          clusters = clusterCombined(ungroupedIds, settings.timeGapMinutes); break;
+  }
+  const filtered = {};
+  for (const [key, fids] of Object.entries(clusters)) {
+    if (fids.length >= settings.minClusterSize) filtered[key] = fids;
+  }
+  return filtered;
+}
+
+function showAutoGroupPreview() {
+  const clusters = computeAutoGroups();
+  const keys = Object.keys(clusters);
+  if (keys.length === 0) {
+    alert('No clusters found. All files may already be grouped, or there are too few ungrouped files.');
+    return;
+  }
+  const totalFiles = Object.values(clusters).reduce((a, b) => a + b.length, 0);
+  let html = `<div class="rename-summary"><span>${keys.length} groups detected from ${totalFiles} ungrouped files</span></div>`;
+  html += '<table class="rename-table"><thead><tr><th>Group</th><th>Files</th><th>Sample Names</th></tr></thead><tbody>';
+  for (const key of keys) {
+    const fids = clusters[key];
+    const samples = fids.slice(0, 3).map(fid => {
+      const f = state.files.find(x => x.id === fid);
+      return f ? esc(f.name) : '?';
+    }).join(', ');
+    const more = fids.length > 3 ? ` +${fids.length - 3} more` : '';
+    html += `<tr><td style="font-weight:600;color:var(--accent)">${esc(key)}</td><td>${fids.length}</td><td style="font-size:11px;">${samples}${more}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  $('#autogroup-body').innerHTML = html;
+  $('#autogroup-modal').dataset.clusters = JSON.stringify(clusters);
+  $('#autogroup-modal').classList.remove('hidden');
+}
+
+function applyAutoGroups() {
+  const clusters = JSON.parse($('#autogroup-modal').dataset.clusters || '{}');
+  pushUndo();
+  for (const [, fids] of Object.entries(clusters)) {
+    createShot(fids);
+  }
+  $('#autogroup-modal').classList.add('hidden');
+  renderCanvas();
+  updateStatusBar();
+}
+
 /* ===== Selection ===== */
 
 function isSelected(type, id) {
@@ -1172,6 +1433,11 @@ function renderCanvas() {
       imgWrap.appendChild(badge);
     }
 
+    const typeBadge = document.createElement('div');
+    typeBadge.className = 'type-badge type-' + (f.mediaType || 'video');
+    typeBadge.textContent = f.mediaType === 'image' ? 'IMG' : 'VID';
+    imgWrap.appendChild(typeBadge);
+
     const label = document.createElement('div');
     label.className = 'thumb-label';
     label.textContent = f.name;
@@ -1319,6 +1585,7 @@ function applyTemplate(fileId, seqOffset = 0) {
     original: { value: original, isString: true },
     date:     { value: today(), isString: true },
     ext:      { value: ext.replace('.', ''), isString: true },
+    type:     { value: f.mediaType || 'video', isString: true },
   };
 
   const result = state.template.replace(/\{([^}]+)\}/g, (match, tokenStr) => {
@@ -1349,9 +1616,11 @@ function generatePreview(existingSeqs = null) {
         const f = state.files.find(x => x.id === t.fileId);
         if (!f) continue;
         const offset = existingSeqs ? (existingSeqs.get(buildShotPrefix(t.fileId)) || 0) : 0;
+        const newName = state.exportMode === 'sort-only' ? f.name : applyTemplate(t.fileId, offset);
         preview.push({
-          fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId, offset),
+          fileId: t.fileId, original: f.name, newName,
           scene: scene.name, shot: shot.number, grouped: true,
+          folder: computeFolderPath(t.fileId, scene.name, shot.number),
         });
       }
     }
@@ -1367,9 +1636,11 @@ function generatePreview(existingSeqs = null) {
       const f = state.files.find(x => x.id === t.fileId);
       if (!f) continue;
       const offset = existingSeqs ? (existingSeqs.get(buildShotPrefix(t.fileId)) || 0) : 0;
+      const newName = state.exportMode === 'sort-only' ? f.name : applyTemplate(t.fileId, offset);
       preview.push({
-        fileId: t.fileId, original: f.name, newName: applyTemplate(t.fileId, offset),
+        fileId: t.fileId, original: f.name, newName,
         scene: '(no scene)', shot: shot.number, grouped: true,
+        folder: computeFolderPath(t.fileId, '(no scene)', shot.number),
       });
     }
   }
@@ -1411,7 +1682,7 @@ function showRenamePreview(existingSeqs = null) {
     </div>`;
   }
 
-  // Info summary
+  // Info summary + export mode selector
   dom.renameInfo.innerHTML = `
     <div class="rename-summary">
       <span>Template: <strong style="font-family:var(--font-mono);color:var(--accent)">${esc(state.template)}</strong></span>
@@ -1425,17 +1696,43 @@ function showRenamePreview(existingSeqs = null) {
       ${ungrouped.length ? `<span class="rename-warn">${ungrouped.length} ungrouped (excluded)</span>` : ''}
       ${hasCollisions ? `<span class="rename-warn">${collisions.size} collision${collisions.size !== 1 ? 's' : ''}</span>` : ''}
     </div>
-    ${offsetInfo}`;
+    <div class="rename-summary" style="margin-top:4px;">
+      <label style="font-size:12px;color:var(--text-secondary);">Export mode:
+        <select id="export-mode" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text-primary);font-size:12px;">
+          <option value="rename-and-sort" ${state.exportMode === 'rename-and-sort' ? 'selected' : ''}>Rename + Sort into folders</option>
+          <option value="rename-only" ${state.exportMode === 'rename-only' ? 'selected' : ''}>Rename only (flat)</option>
+          <option value="sort-only" ${state.exportMode === 'sort-only' ? 'selected' : ''}>Sort into folders (keep names)</option>
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--text-secondary);">Folder structure:
+        <select id="export-folder-struct" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text-primary);font-size:12px;">
+          <option value="scene" ${state.folderStructure === 'scene' ? 'selected' : ''}>By Scene</option>
+          <option value="scene-shot" ${state.folderStructure === 'scene-shot' ? 'selected' : ''}>Scene / Shot</option>
+          <option value="file-type" ${state.folderStructure === 'file-type' ? 'selected' : ''}>By File Type</option>
+          <option value="custom" ${state.folderStructure === 'custom' ? 'selected' : ''}>Custom template</option>
+        </select>
+      </label>
+      <span id="custom-folder-template" style="display:${state.folderStructure === 'custom' ? 'inline' : 'none'};">
+        <input type="text" id="export-folder-tpl" value="${esc(state.folderTemplate)}"
+          style="background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text-primary);font-family:var(--font-mono);font-size:12px;width:180px;"
+          placeholder="{scene}/{shot}" spellcheck="false">
+      </span>
+    </div>
+    ${offsetInfo}
+    ${buildFolderTreeHtml(grouped)}`;
 
   // Table
+  const showFolder = state.exportMode !== 'rename-only';
+  const colCount = showFolder ? 6 : 5;
   let html = '<table class="rename-table"><thead><tr>';
   html += '<th>Original</th><th>Scene</th><th>Shot</th><th></th><th>New Name</th>';
+  if (showFolder) html += '<th>Folder</th>';
   html += '</tr></thead><tbody>';
 
   let lastScene = null;
   for (const p of grouped) {
     if (p.scene !== lastScene) {
-      html += `<tr class="rename-scene-header"><td colspan="5">Scene: ${esc(p.scene)}</td></tr>`;
+      html += `<tr class="rename-scene-header"><td colspan="${colCount}">Scene: ${esc(p.scene)}</td></tr>`;
       lastScene = p.scene;
     }
     const isCollision = collisions.has(p.newName);
@@ -1445,13 +1742,14 @@ function showRenamePreview(existingSeqs = null) {
     html += `<td>${p.shot ? String(p.shot).padStart(3, '0') : ''}</td>`;
     html += `<td class="rename-arrow">&rarr;</td>`;
     html += `<td class="rename-new" title="${esc(p.newName)}">${esc(p.newName)}</td>`;
+    if (showFolder) html += `<td style="color:var(--text-muted);font-size:11px;">${esc(p.folder || '(root)')}</td>`;
     html += '</tr>';
   }
 
   if (ungrouped.length > 0) {
-    html += '<tr class="rename-scene-header"><td colspan="5">Ungrouped (will NOT be exported)</td></tr>';
+    html += `<tr class="rename-scene-header"><td colspan="${colCount}">Ungrouped (will NOT be exported)</td></tr>`;
     for (const p of ungrouped) {
-      html += `<tr class="rename-excluded"><td>${esc(p.original)}</td><td colspan="4">—</td></tr>`;
+      html += `<tr class="rename-excluded"><td>${esc(p.original)}</td><td colspan="${colCount - 1}">—</td></tr>`;
     }
   }
 
@@ -1460,6 +1758,25 @@ function showRenamePreview(existingSeqs = null) {
 
   dom.renameExportBtn.disabled = hasCollisions || grouped.length === 0;
   dom.renameModal.classList.remove('hidden');
+
+  // Wire export mode controls (re-wired each time modal opens)
+  const modeSelect = $('#export-mode');
+  const structSelect = $('#export-folder-struct');
+  const folderTplInput = $('#export-folder-tpl');
+  if (modeSelect) modeSelect.addEventListener('change', () => {
+    state.exportMode = modeSelect.value;
+    showRenamePreview(existingSeqs);
+  });
+  if (structSelect) structSelect.addEventListener('change', () => {
+    state.folderStructure = structSelect.value;
+    const customDiv = $('#custom-folder-template');
+    if (customDiv) customDiv.style.display = structSelect.value === 'custom' ? 'inline' : 'none';
+    showRenamePreview(existingSeqs);
+  });
+  if (folderTplInput) folderTplInput.addEventListener('change', () => {
+    state.folderTemplate = folderTplInput.value;
+    showRenamePreview(existingSeqs);
+  });
 }
 
 /* ===== Output Folder Scan ===== */
@@ -1505,6 +1822,77 @@ function buildShotPrefix(fileId) {
   // Extract prefix before the sequence portion (everything before _NNN_V)
   const match = stem.match(/^(.+?)_\d{3,}_V/i);
   return match ? match[1] : stem;
+}
+
+/* ===== Folder Path Computation ===== */
+
+function sanitizeDirName(name) {
+  return (name || '').replace(/[^a-zA-Z0-9_\- ]/g, '_') || 'UNNAMED';
+}
+
+function expandFolderTemplate(fileId, sceneName, shotNum) {
+  const f = state.files.find(x => x.id === fileId);
+  const tokenValues = {
+    project: { value: state.projectName, isString: true },
+    scene:   { value: sceneName || 'UNSORTED', isString: true },
+    shot:    { value: shotNum || 0 },
+    type:    { value: f ? (f.mediaType || 'video') : 'video', isString: true },
+    date:    { value: today(), isString: true },
+  };
+  return state.folderTemplate.replace(/\{([^}]+)\}/g, (match, tokenStr) => {
+    const { name, pad, prefix, suffix } = parseToken(tokenStr);
+    const tokenDef = tokenValues[name];
+    if (!tokenDef) return match;
+    if (tokenDef.isString) return prefix + String(tokenDef.value) + suffix;
+    return formatToken(tokenDef.value, pad, prefix, suffix);
+  });
+}
+
+function computeFolderPath(fileId, sceneName, shotNum) {
+  const f = state.files.find(x => x.id === fileId);
+  if (state.exportMode === 'rename-only') return '';
+  switch (state.folderStructure) {
+    case 'scene':
+      return sceneName ? sanitizeDirName(sceneName) : 'UNSORTED';
+    case 'scene-shot': {
+      const sn = sceneName ? sanitizeDirName(sceneName) : 'UNSORTED';
+      const sh = shotNum ? 'SH' + String(shotNum).padStart(3, '0') : 'UNASSIGNED';
+      return sn + '/' + sh;
+    }
+    case 'file-type':
+      return f && f.mediaType === 'image' ? 'Images' : 'Video';
+    case 'custom':
+      return expandFolderTemplate(fileId, sceneName, shotNum);
+    default:
+      return sceneName ? sanitizeDirName(sceneName) : 'UNSORTED';
+  }
+}
+
+function buildFolderTreeHtml(preview) {
+  const tree = {};
+  for (const p of preview) {
+    if (!p.folder) continue;
+    const parts = p.folder.split('/');
+    let node = tree;
+    for (const part of parts) {
+      if (!node[part]) node[part] = { _count: 0, _children: {} };
+      node[part]._count++;
+      node = node[part]._children;
+    }
+  }
+  function renderTree(node, indent) {
+    let html = '';
+    for (const [name, data] of Object.entries(node)) {
+      html += `<div style="padding-left:${indent * 16}px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">`;
+      html += `<span style="color:var(--accent);">/${esc(name)}/</span> (${data._count} files)`;
+      html += '</div>';
+      html += renderTree(data._children, indent + 1);
+    }
+    return html;
+  }
+  const inner = renderTree(tree, 0);
+  if (!inner) return '';
+  return `<div style="background:var(--bg-primary);border-radius:var(--radius);padding:8px;margin-bottom:8px;">${inner}</div>`;
 }
 
 /* ===== Export ===== */
@@ -1554,14 +1942,21 @@ async function exportFiles() {
 
   let copied = 0;
   let errors = 0;
-  const sceneNames = [...new Set(preview.map(p => p.scene))];
-
   try {
-    // Create scene subdirectories
-    const sceneDirs = {};
-    for (const name of sceneNames) {
-      const dirName = name.replace(/[^a-zA-Z0-9_\- ]/g, '_') || 'UNSORTED';
-      sceneDirs[name] = await outDir.getDirectoryHandle(dirName, { create: true });
+    // Cache for created directory handles
+    const dirCache = {};
+
+    async function getOrCreateDir(baseDirHandle, folderPath) {
+      if (!folderPath) return baseDirHandle;
+      if (dirCache[folderPath]) return dirCache[folderPath];
+      let current = baseDirHandle;
+      const parts = folderPath.split('/');
+      for (const part of parts) {
+        const dirName = sanitizeDirName(part);
+        current = await current.getDirectoryHandle(dirName, { create: true });
+      }
+      dirCache[folderPath] = current;
+      return current;
     }
 
     for (const p of preview) {
@@ -1571,7 +1966,8 @@ async function exportFiles() {
       progressCount.textContent = `${copied + 1}/${preview.length}`;
       progressFill.style.width = ((copied / preview.length) * 100) + '%';
       try {
-        await copyFileToDirectory(f.file, sceneDirs[p.scene], p.newName);
+        const targetDir = await getOrCreateDir(outDir, p.folder || '');
+        await copyFileToDirectory(f.file, targetDir, p.newName);
         copied++;
       } catch (err) {
         console.error(`Failed to copy ${f.name} → ${p.newName}:`, err);
@@ -1745,6 +2141,57 @@ function removeSelected() {
   if (state.files.length === 0) showDropZone();
 }
 
+/* ===== Settings Persistence ===== */
+
+const SETTINGS_KEY = 'shotboard_settings';
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      state.settings = { ...state.settings, ...saved };
+    }
+  } catch (e) { console.warn('Could not load settings:', e); }
+  // Apply defaults to session
+  state.template = state.settings.defaultTemplate;
+  state.projectName = state.settings.defaultProjectName;
+  $('#input-template').value = state.template;
+  $('#input-project').value = state.projectName;
+}
+
+function saveSettings() {
+  state.settings.defaultTemplate = $('#settings-template').value;
+  state.settings.defaultProjectName = $('#settings-project').value;
+  state.settings.activePreset = $('#settings-preset').value;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
+  catch (e) { console.warn('Could not save settings:', e); }
+}
+
+function showSettingsModal() {
+  const presetSelect = $('#settings-preset');
+  presetSelect.innerHTML = '';
+  for (const p of NAMING_PRESETS) {
+    const opt = document.createElement('option');
+    opt.value = p.id; opt.textContent = p.name;
+    presetSelect.appendChild(opt);
+  }
+  const customOpt = document.createElement('option');
+  customOpt.value = 'custom'; customOpt.textContent = 'Custom';
+  presetSelect.appendChild(customOpt);
+  presetSelect.value = state.settings.activePreset;
+  $('#settings-template').value = state.settings.defaultTemplate;
+  $('#settings-project').value = state.settings.defaultProjectName;
+  updatePresetDescription();
+  $('#settings-modal').classList.remove('hidden');
+}
+
+function updatePresetDescription() {
+  const selected = $('#settings-preset').value;
+  const preset = NAMING_PRESETS.find(p => p.id === selected);
+  $('#settings-preset-desc').textContent = preset ? `Example: ${preset.description}` : '';
+}
+
 /* ===== Session Save / Load ===== */
 
 function saveSession() {
@@ -1755,13 +2202,16 @@ function saveSession() {
     shotIncrement: state.shotIncrement,
     thumbSize: state.thumbSize,
     panX: state.panX, panY: state.panY, zoom: state.zoom,
-    files: state.files.map(f => ({ id: f.id, name: f.name, relativePath: f.relativePath, size: f.size, flag: f.flag || '', triage: f.triage || 'unknown' })),
+    files: state.files.map(f => ({ id: f.id, name: f.name, relativePath: f.relativePath, size: f.size, flag: f.flag || '', triage: f.triage || 'unknown', mediaType: f.mediaType || 'video', lastModified: f.lastModified || 0 })),
     thumbnails: state.thumbnails,
     shots: state.shots,
     scenes: state.scenes,
     nextId: state.nextId,
     nextShotId: state.nextShotId,
     nextSceneId: state.nextSceneId,
+    exportMode: state.exportMode,
+    folderStructure: state.folderStructure,
+    folderTemplate: state.folderTemplate,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1794,6 +2244,9 @@ async function loadSession() {
   state.scenes = data.scenes || [];
   state.nextShotId = data.nextShotId || 0;
   state.nextSceneId = data.nextSceneId || 0;
+  state.exportMode = data.exportMode || 'rename-and-sort';
+  state.folderStructure = data.folderStructure || 'scene';
+  state.folderTemplate = data.folderTemplate || '{scene}';
   state.selectedItems = [];
   state.undoStack = [];
 
@@ -1801,6 +2254,8 @@ async function loadSession() {
   state.files = (data.files || []).map(f => ({
     ...f, file: null, objectUrl: null, thumbnailUrl: null, possibleDupe: false,
     flag: f.flag || '', triage: f.triage || 'unknown',
+    mediaType: f.mediaType || getMediaType(f.name) || 'video',
+    lastModified: f.lastModified || 0,
   }));
   state.nextId = data.nextId || state.files.length;
 
@@ -2101,9 +2556,18 @@ function onCanvasDblClick(e) {
   if (hit.type === 'thumbnail') {
     const f = state.files.find(x => x.id === hit.id);
     if (f && f.objectUrl) {
-      dom.videoPlayer.src = f.objectUrl;
-      dom.videoOverlay.classList.remove('hidden');
-      dom.videoPlayer.play();
+      if (f.mediaType === 'image') {
+        dom.videoPlayer.classList.add('hidden');
+        dom.imagePreview.src = f.objectUrl;
+        dom.imagePreview.classList.remove('hidden');
+        dom.videoOverlay.classList.remove('hidden');
+      } else {
+        dom.imagePreview.classList.add('hidden');
+        dom.videoPlayer.classList.remove('hidden');
+        dom.videoPlayer.src = f.objectUrl;
+        dom.videoOverlay.classList.remove('hidden');
+        dom.videoPlayer.play();
+      }
     }
   } else if (hit.type === 'shot') {
     promptRenameShot(hit.id);
@@ -2148,9 +2612,14 @@ function onKeyDown(e) {
     e.preventDefault();
     hideContextMenu();
     dom.renameModal.classList.add('hidden');
+    $('#autogroup-modal').classList.add('hidden');
+    $('#settings-modal').classList.add('hidden');
     if (!dom.videoOverlay.classList.contains('hidden')) {
       dom.videoPlayer.pause();
       dom.videoPlayer.src = '';
+      dom.imagePreview.src = '';
+      dom.imagePreview.classList.add('hidden');
+      dom.videoPlayer.classList.remove('hidden');
       dom.videoOverlay.classList.add('hidden');
     }
     deselectAll();
@@ -2253,9 +2722,12 @@ document.addEventListener('click', (e) => {
 
 // Video overlay close
 dom.videoOverlay.addEventListener('click', (e) => {
-  if (e.target === dom.videoOverlay) {
+  if (e.target === dom.videoOverlay || e.target === dom.imagePreview) {
     dom.videoPlayer.pause();
     dom.videoPlayer.src = '';
+    dom.imagePreview.src = '';
+    dom.imagePreview.classList.add('hidden');
+    dom.videoPlayer.classList.remove('hidden');
     dom.videoOverlay.classList.add('hidden');
   }
 });
@@ -2296,6 +2768,43 @@ $('#btn-load').addEventListener('click', async () => {
 // Detect Dupes
 $('#btn-dupes').addEventListener('click', flagDuplicates);
 
+// Auto-Group
+$('#btn-autogroup').addEventListener('click', showAutoGroupPreview);
+$('#autogroup-close').addEventListener('click', () => $('#autogroup-modal').classList.add('hidden'));
+$('#autogroup-cancel').addEventListener('click', () => $('#autogroup-modal').classList.add('hidden'));
+$('#autogroup-apply').addEventListener('click', applyAutoGroups);
+$('#autogroup-recompute').addEventListener('click', () => {
+  state.autoGroupSettings.method = $('#autogroup-method').value;
+  state.autoGroupSettings.timeGapMinutes = parseInt($('#autogroup-gap').value) || 30;
+  state.autoGroupSettings.minClusterSize = parseInt($('#autogroup-min').value) || 2;
+  showAutoGroupPreview();
+});
+$('#autogroup-modal').addEventListener('click', (e) => {
+  if (e.target === $('#autogroup-modal')) $('#autogroup-modal').classList.add('hidden');
+});
+
+// Settings
+$('#btn-settings').addEventListener('click', showSettingsModal);
+$('#settings-close').addEventListener('click', () => $('#settings-modal').classList.add('hidden'));
+$('#settings-cancel').addEventListener('click', () => $('#settings-modal').classList.add('hidden'));
+$('#settings-save').addEventListener('click', () => {
+  saveSettings();
+  state.template = state.settings.defaultTemplate;
+  state.projectName = state.settings.defaultProjectName;
+  $('#input-template').value = state.template;
+  $('#input-project').value = state.projectName;
+  $('#settings-modal').classList.add('hidden');
+});
+$('#settings-preset').addEventListener('change', () => {
+  const selected = $('#settings-preset').value;
+  const preset = NAMING_PRESETS.find(p => p.id === selected);
+  if (preset) $('#settings-template').value = preset.template;
+  updatePresetDescription();
+});
+$('#settings-modal').addEventListener('click', (e) => {
+  if (e.target === $('#settings-modal')) $('#settings-modal').classList.add('hidden');
+});
+
 // Preview Rename
 $('#btn-preview').addEventListener('click', showRenamePreview);
 
@@ -2335,6 +2844,7 @@ document.addEventListener('contextmenu', (e) => {
 });
 
 /* ===== Init ===== */
+loadSettings();
 updateStatusBar();
 applyTransform();
 
