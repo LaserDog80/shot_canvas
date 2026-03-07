@@ -383,7 +383,7 @@
       </div>
       <div class="toolbar-field">
         <span>Template</span>
-        <input type="text" id="input-template" value="{project}_{scene:2:SC}_{shot:6}_{seq:3}_V" spellcheck="false">
+        <input type="text" id="input-template" value="{project}_{scene}_{shot}_{seq:3}_V" spellcheck="false">
       </div>
       <div class="toolbar-field">
         <span>Start</span>
@@ -594,14 +594,14 @@ const state = {
   files: [],          // [{id, file, name, relativePath, objectUrl, size, thumbnailUrl, possibleDupe}]
   nextId: 0,
   thumbnails: [],     // [{fileId, x, y, suffix, prefix}]
-  shots: [],          // [{id, number, fileIds}]
+  shots: [],          // [{id, name, fileIds}]
   scenes: [],         // [{id, name, shotIds}]
   nextShotId: 0,
   nextSceneId: 0,
   panX: 0,
   panY: 0,
   zoom: 1,
-  template: '{project}_{scene:2:SC}_{shot:6}_{seq:3}_V',
+  template: '{project}_{scene}_{shot}_{seq:3}_V',
   shotIncrement: 10,
   shotStartNumber: 10,
   thumbSize: 160,
@@ -1024,13 +1024,16 @@ function computeSceneBounds(scene) {
 
 /* ===== Grouping ===== */
 
-function nextShotNumber() {
-  const existing = state.shots.map(s => s.number).sort((a, b) => a - b);
-  if (existing.length === 0) return state.shotStartNumber;
-  return existing[existing.length - 1] + state.shotIncrement;
+function nextShotName() {
+  const existing = state.shots
+    .map(s => parseInt(s.name, 10))
+    .filter(n => !isNaN(n))
+    .sort((a, b) => a - b);
+  if (existing.length === 0) return String(state.shotStartNumber);
+  return String(existing[existing.length - 1] + state.shotIncrement);
 }
 
-function createShot(fileIds, number) {
+function createShot(fileIds, name) {
   if (fileIds.length === 0) return null;
   pushUndo();
   // Remove from any existing shots
@@ -1042,8 +1045,8 @@ function createShot(fileIds, number) {
   }
   // Clean up empty shots
   state.shots = state.shots.filter(s => s.fileIds.length > 0);
-  const shotNum = number != null ? number : nextShotNumber();
-  const shot = { id: state.nextShotId++, number: shotNum, fileIds: [...fileIds] };
+  const shotName = name != null ? String(name) : nextShotName();
+  const shot = { id: state.nextShotId++, name: shotName, fileIds: [...fileIds] };
   state.shots.push(shot);
   state.selectedItems = [{ type: 'shot', id: shot.id }];
   renderCanvas();
@@ -1385,7 +1388,7 @@ function renderCanvas() {
     el.style.cssText = `left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px;`;
     const label = document.createElement('div');
     label.className = 'shot-label';
-    label.textContent = 'SH' + String(shot.number).padStart(3, '0');
+    label.textContent = shot.name;
     label.dataset.shotId = shot.id;
     el.appendChild(label);
     dom.world.appendChild(el);
@@ -1575,7 +1578,7 @@ function applyTemplate(fileId, seqOffset = 0) {
   const tokenValues = {
     project:  { value: state.projectName, isString: true },
     scene:    { value: scene ? scene.name : 'UNSCENED', isString: true },
-    shot:     { value: shot ? shot.number : 0 },
+    shot:     { value: shot ? shot.name : 'UNSHOT', isString: true },
     seq:      { value: version + seqOffset },
     version:  { value: version },
     nn:       { value: seqNum },
@@ -1592,7 +1595,11 @@ function applyTemplate(fileId, seqOffset = 0) {
     const { name, pad, prefix, suffix } = parseToken(tokenStr);
     const tokenDef = tokenValues[name];
     if (!tokenDef) return match;
-    if (tokenDef.isString) return prefix + String(tokenDef.value) + suffix;
+    if (tokenDef.isString) {
+      let val = String(tokenDef.value);
+      if (pad > 0) val = val.padStart(pad, '0');
+      return prefix + val + suffix;
+    }
     return formatToken(tokenDef.value, pad, prefix, suffix);
   });
 
@@ -1619,8 +1626,8 @@ function generatePreview(existingSeqs = null) {
         const newName = state.exportMode === 'sort-only' ? f.name : applyTemplate(t.fileId, offset);
         preview.push({
           fileId: t.fileId, original: f.name, newName,
-          scene: scene.name, shot: shot.number, grouped: true,
-          folder: computeFolderPath(t.fileId, scene.name, shot.number),
+          scene: scene.name, shot: shot.name, grouped: true,
+          folder: computeFolderPath(t.fileId, scene.name, shot.name),
         });
       }
     }
@@ -1639,8 +1646,8 @@ function generatePreview(existingSeqs = null) {
       const newName = state.exportMode === 'sort-only' ? f.name : applyTemplate(t.fileId, offset);
       preview.push({
         fileId: t.fileId, original: f.name, newName,
-        scene: '(no scene)', shot: shot.number, grouped: true,
-        folder: computeFolderPath(t.fileId, '(no scene)', shot.number),
+        scene: '(no scene)', shot: shot.name, grouped: true,
+        folder: computeFolderPath(t.fileId, '(no scene)', shot.name),
       });
     }
   }
@@ -1830,12 +1837,12 @@ function sanitizeDirName(name) {
   return (name || '').replace(/[^a-zA-Z0-9_\- ]/g, '_') || 'UNNAMED';
 }
 
-function expandFolderTemplate(fileId, sceneName, shotNum) {
+function expandFolderTemplate(fileId, sceneName, shotName) {
   const f = state.files.find(x => x.id === fileId);
   const tokenValues = {
     project: { value: state.projectName, isString: true },
     scene:   { value: sceneName || 'UNSORTED', isString: true },
-    shot:    { value: shotNum || 0 },
+    shot:    { value: shotName || 'UNSHOT', isString: true },
     type:    { value: f ? (f.mediaType || 'video') : 'video', isString: true },
     date:    { value: today(), isString: true },
   };
@@ -1843,12 +1850,16 @@ function expandFolderTemplate(fileId, sceneName, shotNum) {
     const { name, pad, prefix, suffix } = parseToken(tokenStr);
     const tokenDef = tokenValues[name];
     if (!tokenDef) return match;
-    if (tokenDef.isString) return prefix + String(tokenDef.value) + suffix;
+    if (tokenDef.isString) {
+      let val = String(tokenDef.value);
+      if (pad > 0) val = val.padStart(pad, '0');
+      return prefix + val + suffix;
+    }
     return formatToken(tokenDef.value, pad, prefix, suffix);
   });
 }
 
-function computeFolderPath(fileId, sceneName, shotNum) {
+function computeFolderPath(fileId, sceneName, shotName) {
   const f = state.files.find(x => x.id === fileId);
   if (state.exportMode === 'rename-only') return '';
   switch (state.folderStructure) {
@@ -1856,13 +1867,13 @@ function computeFolderPath(fileId, sceneName, shotNum) {
       return sceneName ? sanitizeDirName(sceneName) : 'UNSORTED';
     case 'scene-shot': {
       const sn = sceneName ? sanitizeDirName(sceneName) : 'UNSORTED';
-      const sh = shotNum ? 'SH' + String(shotNum).padStart(3, '0') : 'UNASSIGNED';
+      const sh = shotName ? sanitizeDirName(shotName) : 'UNASSIGNED';
       return sn + '/' + sh;
     }
     case 'file-type':
       return f && f.mediaType === 'image' ? 'Images' : 'Video';
     case 'custom':
-      return expandFolderTemplate(fileId, sceneName, shotNum);
+      return expandFolderTemplate(fileId, sceneName, shotName);
     default:
       return sceneName ? sanitizeDirName(sceneName) : 'UNSORTED';
   }
@@ -2074,9 +2085,9 @@ function buildContextMenu(worldX, worldY, hit) {
 function promptCreateShot() {
   const fids = getSelectedFileIds();
   if (fids.length === 0) return;
-  const num = prompt('Shot number:', String(nextShotNumber()));
-  if (num === null) return;
-  createShot(fids, parseInt(num, 10) || nextShotNumber());
+  const name = prompt('Shot name:', nextShotName());
+  if (name === null) return;
+  createShot(fids, name.trim() || nextShotName());
 }
 
 function promptCreateScene() {
@@ -2084,16 +2095,16 @@ function promptCreateScene() {
   if (sids.length === 0) return;
   const name = prompt('Scene name:', 'SCENE');
   if (name === null) return;
-  createScene(sids, name.toUpperCase() || 'SCENE');
+  createScene(sids, name.trim() || 'SCENE');
 }
 
 function promptRenameShot(shotId) {
   const shot = state.shots.find(s => s.id === shotId);
   if (!shot) return;
-  const num = prompt('Shot number:', String(shot.number));
-  if (num === null) return;
+  const name = prompt('Shot name:', shot.name);
+  if (name === null) return;
   pushUndo();
-  shot.number = parseInt(num, 10) || shot.number;
+  shot.name = name.trim() || shot.name;
   renderCanvas();
 }
 
@@ -2103,7 +2114,7 @@ function promptRenameScene(sceneId) {
   const name = prompt('Scene name:', scene.name);
   if (name === null) return;
   pushUndo();
-  scene.name = name.toUpperCase() || scene.name;
+  scene.name = name.trim() || scene.name;
   renderCanvas();
 }
 
@@ -2232,7 +2243,7 @@ async function loadSession() {
   const data = JSON.parse(text);
 
   state.projectName = data.projectName || 'PROJECT';
-  state.template = data.template || '{project}_{scene:2:SC}_{shot:6}_{seq:3}_V';
+  state.template = data.template || '{project}_{scene}_{shot}_{seq:3}_V';
   state.shotStartNumber = data.shotStartNumber || 10;
   state.shotIncrement = data.shotIncrement || 10;
   state.thumbSize = data.thumbSize || 160;
@@ -2240,7 +2251,10 @@ async function loadSession() {
   state.panY = data.panY || 0;
   state.zoom = data.zoom || 1;
   state.thumbnails = data.thumbnails || [];
-  state.shots = data.shots || [];
+  state.shots = (data.shots || []).map(s => ({
+    ...s,
+    name: s.name != null ? String(s.name) : (s.number != null ? String(s.number) : 'SHOT'),
+  }));
   state.scenes = data.scenes || [];
   state.nextShotId = data.nextShotId || 0;
   state.nextSceneId = data.nextSceneId || 0;
